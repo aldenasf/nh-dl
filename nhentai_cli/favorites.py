@@ -12,15 +12,17 @@ def create_authenticated_client(
     token: str | None = None,
     api_key: str | None = None
 ) -> nhentaipy.NHentai:
-    raw = (token or api_key or "").strip()
-    if raw.startswith("User "):
-        raw = raw[5:].strip()
-    elif raw.startswith("Key "):
-        raw = raw[4:].strip()
+    raw_token = (token or "").strip()
+    raw_key = (api_key or "").strip()
 
-    if api_key and not token:
-        return nhentaipy.NHentai(key=raw)
-    return nhentaipy.NHentai(token=raw)
+    if raw_token.startswith("User "):
+        raw_token = raw_token[5:].strip()
+    if raw_key.startswith("Key "):
+        raw_key = raw_key[4:].strip()
+
+    if raw_key:
+        return nhentaipy.NHentai(key=raw_key)
+    return nhentaipy.NHentai(token=raw_token)
 
 def fetch_all_favorite_ids(
     client: nhentaipy.NHentai,

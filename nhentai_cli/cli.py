@@ -122,21 +122,24 @@ def get_args() -> dict:
     group = parser.add_argument_group("favorites options")
     group.add_argument('--export-favorites', type=Path, metavar="FILE", help="Fetch favorites and export codes to a .txt file")
     group.add_argument('--download-favorites', action='store_true', help="Fetch favorites and immediately download all of them")
-    group.add_argument('--token', '--sessionid', type=str, default=os.environ.get("NHENTAI_TOKEN") or os.environ.get("NHENTAI_SESSION_ID"), help="nhentai access_token or API key")
+    group.add_argument('--token', '--sessionid', type=str, default=os.environ.get("NHENTAI_TOKEN") or os.environ.get("NHENTAI_SESSION_ID"), help="nhentai access_token")
+    group.add_argument('--api-key', '--key', type=str, default=os.environ.get("NHENTAI_API_KEY"), help="nhentai API key")
 
     parsed = parser.parse_args()
+
+    auth_kwargs = {"token": parsed.token, "api_key": parsed.api_key}
 
     if parsed.export_favorites:
         return {
             "mode": "export_favorites",
-            "token": parsed.token,
+            **auth_kwargs,
             "export_file": parsed.export_favorites
         }
 
     if parsed.download_favorites:
         return {
             "mode": "download_favorites",
-            "token": parsed.token,
+            **auth_kwargs,
             "output": parsed.output,
             "folder_name": parsed.folder_name,
             "concurrency": parsed.concurrency,

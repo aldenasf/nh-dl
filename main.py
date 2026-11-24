@@ -59,13 +59,14 @@ async def download_codes_list(codes: list[int], config: dict):
 
 def handle_export_favorites(config: dict):
     token = config.get("token")
-    if not token:
-        print_error("Missing authentication token. Provide via --token, .env (NHENTAI_TOKEN), or prompt.")
+    api_key = config.get("api_key")
+    if not token and not api_key:
+        print_error("Missing credentials. Provide via --token, --api-key, or .env (NHENTAI_TOKEN / NHENTAI_API_KEY).")
         sys.exit(1)
 
     print_info("Connecting to nhentai with credentials...")
     try:
-        client = create_authenticated_client(token=token)
+        client = create_authenticated_client(token=token, api_key=api_key)
         me = client.user.get_me()
         print_info(f"Authenticated as user: {Fore.GREEN}{me.username}{Style.RESET_ALL} (ID: {me.id})")
     except Exception as e:
@@ -88,13 +89,14 @@ def handle_export_favorites(config: dict):
 
 async def handle_download_favorites(config: dict):
     token = config.get("token")
-    if not token:
-        print_error("Missing authentication token. Provide via --token, .env (NHENTAI_TOKEN), or prompt.")
+    api_key = config.get("api_key")
+    if not token and not api_key:
+        print_error("Missing credentials. Provide via --token, --api-key, or .env (NHENTAI_TOKEN / NHENTAI_API_KEY).")
         sys.exit(1)
 
     print_info("Connecting to nhentai with credentials...")
     try:
-        client = create_authenticated_client(token=token)
+        client = create_authenticated_client(token=token, api_key=api_key)
         me = client.user.get_me()
         print_info(f"Authenticated as user: {Fore.GREEN}{me.username}{Style.RESET_ALL} (ID: {me.id})")
     except Exception as e:
