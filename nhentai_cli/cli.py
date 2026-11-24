@@ -53,29 +53,28 @@ def prompt_interactive() -> dict:
     
     choice = input(f"{Fore.YELLOW}Select mode (1/2/3) [1]: {Style.RESET_ALL}").strip()
     
-    if choice == '2':
-        env_session = os.environ.get("NHENTAI_SESSION_ID", "")
-        prompt_text = f"Enter nhentai sessionid cookie [{env_session}]: " if env_session else "Enter nhentai sessionid cookie: "
-        session_id = input(f"{Fore.YELLOW}{prompt_text}{Style.RESET_ALL}").strip(' "\'') or env_session
-        out_str = input(f"{Fore.YELLOW}Output directory [./downloads]: {Style.RESET_ALL}").strip(' "\'')
-        return {
-            "mode": "download_favorites",
-            "session_id": session_id,
-            "output": Path(out_str) if out_str else Path("./downloads"),
-            "folder_name": "both",
-            "concurrency": 5,
-            "save_info": True
-        }
-    elif choice == '3':
-        env_session = os.environ.get("NHENTAI_SESSION_ID", "")
-        prompt_text = f"Enter nhentai sessionid cookie [{env_session}]: " if env_session else "Enter nhentai sessionid cookie: "
-        session_id = input(f"{Fore.YELLOW}{prompt_text}{Style.RESET_ALL}").strip(' "\'') or env_session
-        out_txt = input(f"{Fore.YELLOW}Save favorites to [favorites.txt]: {Style.RESET_ALL}").strip(' "\'')
-        return {
-            "mode": "export_favorites",
-            "session_id": session_id,
-            "export_file": Path(out_txt) if out_txt else Path("favorites.txt")
-        }
+    if choice in ('2', '3'):
+        env_token = os.environ.get("NHENTAI_TOKEN") or os.environ.get("NHENTAI_SESSION_ID", "")
+        prompt_text = f"Enter nhentai access_token [{env_token}]: " if env_token else "Enter nhentai access_token: "
+        token = input(f"{Fore.YELLOW}{prompt_text}{Style.RESET_ALL}").strip(' "\'') or env_token
+        
+        if choice == '2':
+            out_str = input(f"{Fore.YELLOW}Output directory [./downloads]: {Style.RESET_ALL}").strip(' "\'')
+            return {
+                "mode": "download_favorites",
+                "token": token,
+                "output": Path(out_str) if out_str else Path("./downloads"),
+                "folder_name": "both",
+                "concurrency": 5,
+                "save_info": True
+            }
+        else:
+            out_txt = input(f"{Fore.YELLOW}Save favorites to [favorites.txt]: {Style.RESET_ALL}").strip(' "\'')
+            return {
+                "mode": "export_favorites",
+                "token": token,
+                "export_file": Path(out_txt) if out_txt else Path("favorites.txt")
+            }
 
     while True:
         input_str = input(f"{Fore.YELLOW}Enter codes file path: {Style.RESET_ALL}").strip(' "\'')
@@ -123,21 +122,21 @@ def get_args() -> dict:
     group = parser.add_argument_group("favorites options")
     group.add_argument('--export-favorites', type=Path, metavar="FILE", help="Fetch favorites and export codes to a .txt file")
     group.add_argument('--download-favorites', action='store_true', help="Fetch favorites and immediately download all of them")
-    group.add_argument('--sessionid', type=str, default=os.environ.get("NHENTAI_SESSION_ID"), help="nhentai sessionid cookie or token")
+    group.add_argument('--token', '--sessionid', type=str, default=os.environ.get("NHENTAI_TOKEN") or os.environ.get("NHENTAI_SESSION_ID"), help="nhentai access_token or API key")
 
     parsed = parser.parse_args()
 
     if parsed.export_favorites:
         return {
             "mode": "export_favorites",
-            "session_id": parsed.sessionid,
+            "token": parsed.token,
             "export_file": parsed.export_favorites
         }
 
     if parsed.download_favorites:
         return {
             "mode": "download_favorites",
-            "session_id": parsed.sessionid,
+            "token": parsed.token,
             "output": parsed.output,
             "folder_name": parsed.folder_name,
             "concurrency": parsed.concurrency,

@@ -58,13 +58,19 @@ async def download_codes_list(codes: list[int], config: dict):
     print("=" * 50)
 
 def handle_export_favorites(config: dict):
-    session_id = config.get("session_id")
-    if not session_id:
-        print_error("Missing sessionid. Provide via --sessionid or prompt.")
+    token = config.get("token")
+    if not token:
+        print_error("Missing authentication token. Provide via --token, .env (NHENTAI_TOKEN), or prompt.")
         sys.exit(1)
 
     print_info("Connecting to nhentai with credentials...")
-    client = create_authenticated_client(session_id=session_id)
+    try:
+        client = create_authenticated_client(token=token)
+        me = client.user.get_me()
+        print_info(f"Authenticated as user: {Fore.GREEN}{me.username}{Style.RESET_ALL} (ID: {me.id})")
+    except Exception as e:
+        print_error(f"Authentication failed: {e}")
+        sys.exit(1)
 
     all_ids = []
     print_info("Fetching favorite galleries...")
@@ -81,13 +87,19 @@ def handle_export_favorites(config: dict):
     print_success(f"Exported {len(all_ids)} favorites to {export_path.resolve()}")
 
 async def handle_download_favorites(config: dict):
-    session_id = config.get("session_id")
-    if not session_id:
-        print_error("Missing sessionid. Provide via --sessionid or prompt.")
+    token = config.get("token")
+    if not token:
+        print_error("Missing authentication token. Provide via --token, .env (NHENTAI_TOKEN), or prompt.")
         sys.exit(1)
 
     print_info("Connecting to nhentai with credentials...")
-    client = create_authenticated_client(session_id=session_id)
+    try:
+        client = create_authenticated_client(token=token)
+        me = client.user.get_me()
+        print_info(f"Authenticated as user: {Fore.GREEN}{me.username}{Style.RESET_ALL} (ID: {me.id})")
+    except Exception as e:
+        print_error(f"Authentication failed: {e}")
+        sys.exit(1)
 
     all_ids = []
     print_info("Fetching favorite galleries...")

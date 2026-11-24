@@ -8,19 +8,19 @@ from .dns import enable_doh_resolver
 
 enable_doh_resolver()
 
-def create_authenticated_client(session_id: str | None = None, api_key: str | None = None, token: str | None = None) -> nhentaipy.NHentai:
-    headers = {}
-    if session_id:
-        headers["Cookie"] = f"sessionid={session_id}"
-    
-    client = nhentaipy.NHentai(
-        key=api_key,
-        token=token,
-        headers=headers if headers else None
-    )
-    if session_id:
-        client.http.session.cookies.set("sessionid", session_id, domain="nhentai.net")
-    return client
+def create_authenticated_client(
+    token: str | None = None,
+    api_key: str | None = None
+) -> nhentaipy.NHentai:
+    raw = (token or api_key or "").strip()
+    if raw.startswith("User "):
+        raw = raw[5:].strip()
+    elif raw.startswith("Key "):
+        raw = raw[4:].strip()
+
+    if api_key and not token:
+        return nhentaipy.NHentai(key=raw)
+    return nhentaipy.NHentai(token=raw)
 
 def fetch_all_favorite_ids(
     client: nhentaipy.NHentai,
@@ -42,7 +42,7 @@ def fetch_all_favorite_ids(
         page_ids = [g.id for g in res.data]
         yield page_ids
 
-        if not res.has_next:
+        if not res.has_next or (res.last_page and page >= res.last_page) or (res.per_page and len(res.data) < res.per_page):
             break
 
         if max_pages and page >= max_pages:

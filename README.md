@@ -28,11 +28,19 @@ python main.py -i codes.txt -o ./downloads
 
 ### 3. User Favorites
 
-You can put your sessionid in a `.env` file (see `.env.example`):
+You can put your authentication token in a `.env` file (see `.env.example`):
 ```bash
-NHENTAI_SESSION_ID=your_session_id_here
+NHENTAI_TOKEN=your_access_token_here
 ```
-Or pass it directly with `--sessionid`.
+Or pass it directly with `--token`.
+
+#### How to get your access_token:
+1. Open nhentai.net in your browser while logged in.
+2. Press `F12` to open Developer Tools (or right click -> Inspect).
+3. Open the **Application** tab (in Chrome/Edge/Brave) or **Storage** tab (in Firefox).
+4. In the left panel, expand **Cookies** and select `https://nhentai.net`.
+5. Find the cookie named **`access_token`** (or the Authorization header value starting after `User `) and copy it.
+6. Paste it into `.env` as `NHENTAI_TOKEN=your_access_token_here`.
 
 #### Export favorites to a text file:
 ```bash
