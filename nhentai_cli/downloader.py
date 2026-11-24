@@ -71,9 +71,22 @@ def extract_metadata(gallery, cover_filename: str = "cover.jpg") -> dict:
         "downloaded_at": datetime.now(timezone.utc).isoformat()
     }
 
-async def download_file(session: aiohttp.ClientSession, url: str, dest_path: Path, semaphore: asyncio.Semaphore) -> bool:
+class GalleryProgressBar(tqdm):
+    total_bytes: int = 0
+
+    @property
+    def format_dict(self):
+        d = super().format_dict
+        elapsed = max(0.001, d['elapsed'])
+        mb = self.total_bytes / (1024 * 1024)
+        mb_rate = mb / elapsed
+        p_rate = d['n'] / elapsed
+        d['stats'] = f"{mb:.1f} MB ({mb_rate:.2f} MB/s, {p_rate:.1f} p/s)"
+        return d
+
+async def download_file(session: aiohttp.ClientSession, url: str, dest_path: Path, semaphore: asyncio.Semaphore) -> tuple[bool, int]:
     if dest_path.exists() and dest_path.stat().st_size > 0:
-        return True
+        return True, dest_path.stat().st_size
     
     temp_path = dest_path.with_suffix(dest_path.suffix + '.tmp')
     async with semaphore:
@@ -82,18 +95,20 @@ async def download_file(session: aiohttp.ClientSession, url: str, dest_path: Pat
                 headers = {'User-Agent': 'Mozilla/5.0'}
                 async with session.get(url, headers=headers, timeout=aiohttp.ClientTimeout(total=30)) as response:
                     if response.status == 200:
+                        bytes_count = 0
                         with open(temp_path, 'wb') as f:
                             async for chunk in response.content.iter_chunked(64 * 1024):
                                 f.write(chunk)
+                                bytes_count += len(chunk)
                         temp_path.replace(dest_path)
-                        return True
+                        return True, bytes_count
             except Exception:
                 if attempt == 2:
                     if temp_path.exists():
                         temp_path.unlink()
-                    return False
+                    return False, 0
                 await asyncio.sleep(1)
-    return False
+    return False, 0
 
 def get_page_extension(page) -> str:
     t = getattr(page, 't', '')
@@ -149,18 +164,20 @@ async def download_gallery(
         cover_dest = gallery_dir / cover_filename
         cover_task = download_file(session, cover_url, cover_dest, semaphore)
 
-        pbar = tqdm(
+        pbar = GalleryProgressBar(
             total=total_pages,
-            desc=f"[{gallery_id}] Pages",
-            unit="p",
-            ascii=True,
+            desc=f"[{gallery_id}]",
+            bar_format="{desc} [{bar:20}] {percentage:3.0f}% ({n_fmt}/{total_fmt} pages) | {stats}",
+            ascii=" =",
             leave=False
         )
 
         async def track_download(url: str, path: Path):
-            res = await download_file(session, url, path, semaphore)
+            ok, b_count = await download_file(session, url, path, semaphore)
+            if ok:
+                pbar.total_bytes += b_count
             pbar.update(1)
-            return res
+            return ok
 
         for idx, page in enumerate(gallery.images.pages, start=1):
             ext = get_page_extension(page)
@@ -173,6 +190,7 @@ async def download_gallery(
         pbar.close()
 
     success_pages = sum(1 for r in results[:-1] if r)
+    cover_ok = results[-1][0] if isinstance(results[-1], tuple) else results[-1]
     if success_pages == total_pages:
         return True, f"Downloaded {total_pages} pages -> {folder_name}"
     else:
