@@ -3,7 +3,9 @@ import os
 import re
 from pathlib import Path
 from colorama import Fore, Style, init
+from dotenv import load_dotenv
 
+load_dotenv()
 init(autoreset=True)
 
 def print_info(text: str) -> None:
@@ -52,7 +54,9 @@ def prompt_interactive() -> dict:
     choice = input(f"{Fore.YELLOW}Select mode (1/2/3) [1]: {Style.RESET_ALL}").strip()
     
     if choice == '2':
-        session_id = input(f"{Fore.YELLOW}Enter nhentai sessionid cookie: {Style.RESET_ALL}").strip(' "\'')
+        env_session = os.environ.get("NHENTAI_SESSION_ID", "")
+        prompt_text = f"Enter nhentai sessionid cookie [{env_session}]: " if env_session else "Enter nhentai sessionid cookie: "
+        session_id = input(f"{Fore.YELLOW}{prompt_text}{Style.RESET_ALL}").strip(' "\'') or env_session
         out_str = input(f"{Fore.YELLOW}Output directory [./downloads]: {Style.RESET_ALL}").strip(' "\'')
         return {
             "mode": "download_favorites",
@@ -63,7 +67,9 @@ def prompt_interactive() -> dict:
             "save_info": True
         }
     elif choice == '3':
-        session_id = input(f"{Fore.YELLOW}Enter nhentai sessionid cookie: {Style.RESET_ALL}").strip(' "\'')
+        env_session = os.environ.get("NHENTAI_SESSION_ID", "")
+        prompt_text = f"Enter nhentai sessionid cookie [{env_session}]: " if env_session else "Enter nhentai sessionid cookie: "
+        session_id = input(f"{Fore.YELLOW}{prompt_text}{Style.RESET_ALL}").strip(' "\'') or env_session
         out_txt = input(f"{Fore.YELLOW}Save favorites to [favorites.txt]: {Style.RESET_ALL}").strip(' "\'')
         return {
             "mode": "export_favorites",

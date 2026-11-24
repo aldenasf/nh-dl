@@ -28,17 +28,21 @@ python main.py -i codes.txt -o ./downloads
 
 ### 3. User Favorites
 
+You can put your sessionid in a `.env` file (see `.env.example`):
+```bash
+NHENTAI_SESSION_ID=your_session_id_here
+```
+Or pass it directly with `--sessionid`.
+
 #### Export favorites to a text file:
 ```bash
-python main.py --export-favorites my_favorites.txt --sessionid "YOUR_SESSION_ID"
+python main.py --export-favorites my_favorites.txt
 ```
 
 #### Download all favorites directly:
 ```bash
-python main.py --download-favorites --sessionid "YOUR_SESSION_ID" -o ./downloads
+python main.py --download-favorites -o ./downloads
 ```
-
-*(Tip: You can also set `NHENTAI_SESSION_ID` in your environment variables to avoid typing `--sessionid` each time).*
 
 ## Options
 
