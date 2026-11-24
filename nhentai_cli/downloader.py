@@ -23,7 +23,7 @@ MEDIA_TYPE_EXT = {
     'w': '.webp',
 }
 
-def extract_metadata(gallery) -> dict:
+def extract_metadata(gallery, cover_filename: str = "cover.jpg") -> dict:
     artists = []
     tags = []
     parodies = []
@@ -67,7 +67,7 @@ def extract_metadata(gallery) -> dict:
         "categories": categories,
         "tags": tags,
         "pages": len(gallery.images.pages),
-        "cover": "cover.jpg",
+        "cover": cover_filename,
         "downloaded_at": datetime.now(timezone.utc).isoformat()
     }
 
@@ -119,7 +119,9 @@ async def download_gallery(
     except Exception as e:
         return False, f"Failed to fetch metadata: {e}"
 
-    meta = extract_metadata(gallery)
+    cover_ext = get_page_extension(gallery.images.cover)
+    cover_filename = f"cover{cover_ext}"
+    meta = extract_metadata(gallery, cover_filename)
     title = meta["title"]["pretty"] or meta["title"]["english"] or str(gallery_id)
     folder_name = get_folder_name(gallery_id, title, naming_scheme)
     gallery_dir = create_gallery_dir(output_dir, folder_name)
@@ -138,9 +140,14 @@ async def download_gallery(
     tasks = []
 
     async with aiohttp.ClientSession() as session:
-        cover_url = f"https://t.nhentai.net/galleries/{media_id}/cover.jpg"
-        cover_path = gallery_dir / "cover.jpg"
-        cover_task = download_file(session, cover_url, cover_path, semaphore)
+        cover_path_attr = getattr(gallery.images.cover, 'path', '')
+        if cover_path_attr:
+            cover_url = f"https://t.nhentai.net/{cover_path_attr}"
+        else:
+            cover_url = f"https://t.nhentai.net/galleries/{media_id}/cover{cover_ext}"
+            
+        cover_dest = gallery_dir / cover_filename
+        cover_task = download_file(session, cover_url, cover_dest, semaphore)
 
         pbar = tqdm(
             total=total_pages,
