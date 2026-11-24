@@ -1,4 +1,5 @@
 import argparse
+import os
 import re
 from pathlib import Path
 from colorama import Fore, Style, init
@@ -43,8 +44,33 @@ def load_codes_from_file(file_path: Path) -> list[int]:
     return codes
 
 def prompt_interactive() -> dict:
-    print(f"{Fore.CYAN}--- nhentai-cli setup ---{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}--- nhentai-cli ---{Style.RESET_ALL}")
+    print("1. Download from codes file")
+    print("2. Download all user favorites directly")
+    print("3. Export user favorites to a .txt file")
     
+    choice = input(f"{Fore.YELLOW}Select mode (1/2/3) [1]: {Style.RESET_ALL}").strip()
+    
+    if choice == '2':
+        session_id = input(f"{Fore.YELLOW}Enter nhentai sessionid cookie: {Style.RESET_ALL}").strip(' "\'')
+        out_str = input(f"{Fore.YELLOW}Output directory [./downloads]: {Style.RESET_ALL}").strip(' "\'')
+        return {
+            "mode": "download_favorites",
+            "session_id": session_id,
+            "output": Path(out_str) if out_str else Path("./downloads"),
+            "folder_name": "both",
+            "concurrency": 5,
+            "save_info": True
+        }
+    elif choice == '3':
+        session_id = input(f"{Fore.YELLOW}Enter nhentai sessionid cookie: {Style.RESET_ALL}").strip(' "\'')
+        out_txt = input(f"{Fore.YELLOW}Save favorites to [favorites.txt]: {Style.RESET_ALL}").strip(' "\'')
+        return {
+            "mode": "export_favorites",
+            "session_id": session_id,
+            "export_file": Path(out_txt) if out_txt else Path("favorites.txt")
+        }
+
     while True:
         input_str = input(f"{Fore.YELLOW}Enter codes file path: {Style.RESET_ALL}").strip(' "\'')
         if not input_str:
@@ -68,6 +94,7 @@ def prompt_interactive() -> dict:
     concurrency = int(conc_str) if conc_str.isdigit() and int(conc_str) > 0 else 5
 
     return {
+        "mode": "download_file",
         "input": codes_path,
         "output": output_dir,
         "folder_name": scheme,
@@ -86,12 +113,36 @@ def get_args() -> dict:
     parser.add_argument('-j', '--concurrency', type=int, default=5, help="Number of concurrent page downloads")
     parser.add_argument('--no-info', action='store_true', help="Skip saving info.json")
 
+    # Favorites options
+    group = parser.add_argument_group("favorites options")
+    group.add_argument('--export-favorites', type=Path, metavar="FILE", help="Fetch favorites and export codes to a .txt file")
+    group.add_argument('--download-favorites', action='store_true', help="Fetch favorites and immediately download all of them")
+    group.add_argument('--sessionid', type=str, default=os.environ.get("NHENTAI_SESSION_ID"), help="nhentai sessionid cookie or token")
+
     parsed = parser.parse_args()
+
+    if parsed.export_favorites:
+        return {
+            "mode": "export_favorites",
+            "session_id": parsed.sessionid,
+            "export_file": parsed.export_favorites
+        }
+
+    if parsed.download_favorites:
+        return {
+            "mode": "download_favorites",
+            "session_id": parsed.sessionid,
+            "output": parsed.output,
+            "folder_name": parsed.folder_name,
+            "concurrency": parsed.concurrency,
+            "save_info": not parsed.no_info
+        }
 
     if parsed.input is None:
         return prompt_interactive()
 
     return {
+        "mode": "download_file",
         "input": parsed.input,
         "output": parsed.output,
         "folder_name": parsed.folder_name,

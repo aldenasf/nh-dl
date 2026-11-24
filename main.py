@@ -8,29 +8,19 @@ from nhentai_cli.cli import (
     load_codes_from_file,
     print_info,
     print_success,
+    print_warning,
     print_error,
 )
 from nhentai_cli.downloader import download_gallery
+from nhentai_cli.favorites import (
+    create_authenticated_client,
+    fetch_all_favorite_ids,
+    export_favorites_to_file,
+)
 
-async def run_batch():
-    try:
-        config = get_args()
-    except (KeyboardInterrupt, EOFError):
-        print("\nAborted.")
-        sys.exit(0)
-
-    try:
-        codes = load_codes_from_file(config["input"])
-    except Exception as e:
-        print_error(str(e))
-        sys.exit(1)
-
-    if not codes:
-        print_info("No codes found in file.")
-        sys.exit(0)
-
+async def download_codes_list(codes: list[int], config: dict):
     total = len(codes)
-    print_info(f"Loaded {total} codes from {config['input']}")
+    print_info(f"Queued {total} codes for download.")
     print_info(f"Output folder: {config['output'].resolve()}")
     print("-" * 50)
 
@@ -66,6 +56,83 @@ async def run_batch():
     else:
         print_success("All downloads finished without errors.")
     print("=" * 50)
+
+def handle_export_favorites(config: dict):
+    session_id = config.get("session_id")
+    if not session_id:
+        print_error("Missing sessionid. Provide via --sessionid or prompt.")
+        sys.exit(1)
+
+    print_info("Connecting to nhentai with credentials...")
+    client = create_authenticated_client(session_id=session_id)
+
+    all_ids = []
+    print_info("Fetching favorite galleries...")
+    try:
+        for page_num, batch in enumerate(fetch_all_favorite_ids(client), start=1):
+            all_ids.extend(batch)
+            print_info(f"Page {page_num}: retrieved {len(batch)} favorites (Total: {len(all_ids)})")
+    except Exception as e:
+        print_error(str(e))
+        sys.exit(1)
+
+    export_path = config["export_file"]
+    export_favorites_to_file(all_ids, export_path)
+    print_success(f"Exported {len(all_ids)} favorites to {export_path.resolve()}")
+
+async def handle_download_favorites(config: dict):
+    session_id = config.get("session_id")
+    if not session_id:
+        print_error("Missing sessionid. Provide via --sessionid or prompt.")
+        sys.exit(1)
+
+    print_info("Connecting to nhentai with credentials...")
+    client = create_authenticated_client(session_id=session_id)
+
+    all_ids = []
+    print_info("Fetching favorite galleries...")
+    try:
+        for page_num, batch in enumerate(fetch_all_favorite_ids(client), start=1):
+            all_ids.extend(batch)
+            print_info(f"Page {page_num}: retrieved {len(batch)} favorites (Total: {len(all_ids)})")
+    except Exception as e:
+        print_error(str(e))
+        sys.exit(1)
+
+    if not all_ids:
+        print_warning("No favorites found on your account.")
+        return
+
+    await download_codes_list(all_ids, config)
+
+async def run_batch():
+    try:
+        config = get_args()
+    except (KeyboardInterrupt, EOFError):
+        print("\nAborted.")
+        sys.exit(0)
+
+    mode = config.get("mode")
+
+    if mode == "export_favorites":
+        handle_export_favorites(config)
+        return
+
+    if mode == "download_favorites":
+        await handle_download_favorites(config)
+        return
+
+    try:
+        codes = load_codes_from_file(config["input"])
+    except Exception as e:
+        print_error(str(e))
+        sys.exit(1)
+
+    if not codes:
+        print_info("No codes found in file.")
+        sys.exit(0)
+
+    await download_codes_list(codes, config)
 
 def main():
     try:
