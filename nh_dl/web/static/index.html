@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>nh-dl — Local Reader</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header id="top-nav" class="navbar">
+    <div class="nav-inner">
+      <a href="#/" class="brand" id="nav-brand">
+        <span class="brand-mark">nh</span><span class="brand-rest">-dl</span>
+      </a>
+
+      <div class="search-wrap" id="search-wrap">
+        <form id="search-form" class="search-form" role="search">
+          <input
+            id="search-input"
+            type="text"
+            placeholder="e.g. nakadashi"
+            autocomplete="off"
+            spellcheck="false"
+          />
+          <button type="button" id="search-clear" class="search-clear hidden" title="Clear search" aria-label="Clear search">×</button>
+          <button type="submit" class="search-btn" title="Search" aria-label="Search">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="11" cy="11" r="7"></circle>
+              <line x1="16.5" y1="16.5" x2="21" y2="21"></line>
+            </svg>
+          </button>
+        </form>
+        <div id="search-dropdown" class="search-dropdown hidden" role="listbox"></div>
+      </div>
+
+      <nav class="nav-links">
+        <a href="#/" data-nav="home">Home</a>
+        <a href="#/tags" data-nav="tags">Tags</a>
+        <a href="#/artists" data-nav="artists">Artists</a>
+        <a href="#/favorites" data-nav="favorites">
+          Favorites <span id="fav-nav-count" class="nav-badge">0</span>
+        </a>
+        <button type="button" id="random-btn" class="nav-action">Random</button>
+        <a href="#/settings" data-nav="settings">Settings</a>
+      </nav>
+    </div>
+  </header>
+
+  <main id="app" class="container"></main>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
