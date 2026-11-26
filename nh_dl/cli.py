@@ -244,7 +244,7 @@ def prompt_interactive() -> dict:
 
 def get_args() -> dict:
     parser = argparse.ArgumentParser(
-        prog="nhentai-cli",
+        prog="nh-dl",
         description="Batch download nhentai galleries as images or PDFs.",
         epilog=(
             "examples:\n"

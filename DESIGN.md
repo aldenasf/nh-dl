@@ -1,4 +1,4 @@
-# nhentai-cli Design Specification & Decision Log
+# nh-dl Design Specification & Decision Log
 
 ## 1. Overview & Goals
 A lightweight, non-bloated, offline-first Python CLI tool to batch download nhentai galleries from a text file list of codes/URLs.
@@ -67,7 +67,7 @@ downloads/
 ## 5. Decision Log
 1. **CLI Mode**: Flags-first with interactive prompts fallback when required flags are omitted.
 2. **Library**: `nhentaipy-v2` for nhentai API communication.
-3. **Architecture**: Modular async architecture (`nhentai_cli/` package + `main.py`).
+3. **Architecture**: Modular async architecture (`nh_dl/` package + `main.py`).
 4. **Coloring**: `colorama` for cross-platform, zero-bloat ANSI terminal coloring.
 5. **Naming**: `--folder-name both` (`[code] title`) as default.
 6. **Archival Integrity**: Downloads `cover.jpg` locally alongside pages for 100% offline self-containment.
@@ -87,14 +87,14 @@ downloads/
 - **Reliability**: Resume logic checks format-specific completion; existing local images are reused to build PDFs without re-downloading.
 
 ### Final Design
-1. **CLI (`nhentai_cli/cli.py`)**:
+1. **CLI (`nh_dl/cli.py`)**:
    - `-f, --format {image,pdf,both}` (default `image`).
    - `--last` flag to replay the last saved settings (overridable by explicit flags).
    - `parse_codes(raw_input)`: reads file if path exists, otherwise parses inline string; strips `#` comments, splits by `,` and `\n`, extracts numeric IDs/URLs, deduplicates in order.
-2. **State (`nhentai_cli/state.py`)**:
+2. **State (`nh_dl/state.py`)**:
    - Persists `input`, `output`, `folder_name`, `format`, and `concurrency` to `.nhentai_cli.json`.
    - Pre-fills interactive prompts with saved values.
-3. **PDF & Storage (`nhentai_cli/pdf.py`, `storage.py`, `downloader.py`)**:
+3. **PDF & Storage (`nh_dl/pdf.py`, `storage.py`, `downloader.py`)**:
    - Saves `<folder_name>.pdf` inside `downloads/<folder_name>/`.
    - Keeps `cover.*` and `info.json` in all modes (`image`, `pdf`, `both`).
    - Deletes page images (`001.*`..`N.*`) after PDF creation only in `pdf` mode.
@@ -120,11 +120,11 @@ downloads/
 - **Reliability**: DoH resolves any `*.nhentai.net` subdomain with thread-safe caching; fast-skip verifies completeness against `info.json` or non-empty `.pdf`.
 
 ### Final Design
-1. **Local Fast-Skip (`nhentai_cli/storage.py`)**:
+1. **Local Fast-Skip (`nh_dl/storage.py`)**:
    - `scan_completed_ids(output_dir, output_format, flat) -> set[int]` scans `output_dir` once at startup.
-2. **Incremental Favorites (`nhentai_cli/favorites.py`, `cli.py`, `main.py`)**:
+2. **Incremental Favorites (`nh_dl/favorites.py`, `cli.py`, `main.py`)**:
    - Stop fetching favorite pages once a full page is already in `completed_ids`; `--full-sync` overrides this.
-3. **Shared Clients & CDN Mirrors (`nhentai_cli/dns.py`, `downloader.py`)**:
+3. **Shared Clients & CDN Mirrors (`nh_dl/dns.py`, `downloader.py`)**:
    - Reuse one `nhentaipy.NHentai` client (via `asyncio.to_thread`) and one `aiohttp.ClientSession` per batch.
    - Rotate across `i`, `i2`, `i3`, `i5`, `i7.nhentai.net` on network/5xx errors; try alternate extensions once on 404.
 4. **Tests (`tests/`)**:
@@ -152,10 +152,10 @@ downloads/
 - **Scale**: Storing structured `LogEntry` records for hundreds or thousands of galleries has negligible memory overhead; a single buffered write takes ~1–2 ms.
 
 ### Final Design
-1. **`BatchLogBuffer` (`nhentai_cli/ui.py`)**:
+1. **`BatchLogBuffer` (`nh_dl/ui.py`)**:
    - Stores header metadata (queued count, output path) and structured `LogEntry(kind, index, total, code, detail)` records.
    - Formats each entry to fit `max(40, cols) - 2` characters, truncating with `…` when narrow and expanding to full detail when wide.
-2. **Debounced Redraw in `_ResizableProgress` (`nhentai_cli/ui.py`)**:
+2. **Debounced Redraw in `_ResizableProgress` (`nh_dl/ui.py`)**:
    - Monitors `_get_terminal_width()` on `make_tasks_table()`.
    - When `cols != _last_cols` stabilizes for >= 150 ms (and `console.is_terminal` is `True`), renders the banner, header, divider, and all formatted `LogEntry` lines into an off-screen `Console(file=StringIO(), ...)` buffer, clears the screen (`\x1b[2J\x1b[3J\x1b[H` or `console.clear()` fallback), and flushes in one write before `Progress` draws the 2 live bars.
 3. **Batch Integration (`main.py`)**:

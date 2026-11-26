@@ -3,12 +3,12 @@ import json
 from pathlib import Path
 from PIL import Image
 
-from nhentai_cli.cli import parse_codes, parse_codes_text
-from nhentai_cli.dns import is_nhentai_host
-from nhentai_cli.downloader import download_file
-from nhentai_cli.pdf import build_pdf_from_images
-from nhentai_cli.state import load_state, save_state
-from nhentai_cli.storage import get_page_images, remove_page_images, scan_completed_ids
+from nh_dl.cli import parse_codes, parse_codes_text
+from nh_dl.dns import is_nhentai_host
+from nh_dl.downloader import download_file
+from nh_dl.pdf import build_pdf_from_images
+from nh_dl.state import load_state, save_state
+from nh_dl.storage import get_page_images, remove_page_images, scan_completed_ids
 
 
 def test_is_nhentai_host():
@@ -166,7 +166,7 @@ def test_download_file_404_alt_extension(tmp_path):
 
 def test_batch_log_buffer_width_fitting(tmp_path):
     from rich.text import Text
-    from nhentai_cli.ui import BatchLogBuffer
+    from nh_dl.ui import BatchLogBuffer
 
     buf = BatchLogBuffer(total=10, output_dir=tmp_path)
     long_msg = "Downloaded 38 pages -> [537235] A Very Long Gallery Title That Should Truncate When Narrow"
@@ -183,13 +183,13 @@ def test_batch_log_buffer_width_fitting(tmp_path):
     assert "Truncate When Narrow" in wide
 
     rendered = buf.render_to_ansi(cols=80)
-    assert "nhentai-cli" in rendered
+    assert "nh-dl" in rendered
     assert "537235" in rendered
     assert "478120" in rendered
 
 
 def test_progress_resize_debounce(tmp_path):
-    from nhentai_cli.ui import BatchLogBuffer, create_download_progress
+    from nh_dl.ui import BatchLogBuffer, create_download_progress
 
     buf = BatchLogBuffer(total=5, output_dir=tmp_path)
     progress = create_download_progress(log_buffer=buf)

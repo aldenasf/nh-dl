@@ -4,7 +4,7 @@ from pathlib import Path
 import aiohttp
 import nhentaipy
 
-from nhentai_cli.cli import (
+from nh_dl.cli import (
     get_args,
     parse_codes,
     print_info,
@@ -12,15 +12,15 @@ from nhentai_cli.cli import (
     print_warning,
     print_error,
 )
-from nhentai_cli.downloader import download_gallery
-from nhentai_cli.favorites import (
+from nh_dl.downloader import download_gallery
+from nh_dl.favorites import (
     create_authenticated_client,
     fetch_all_favorite_ids,
     export_favorites_to_file,
 )
-from nhentai_cli.state import save_state
-from nhentai_cli.storage import scan_completed_ids
-from nhentai_cli.ui import (
+from nh_dl.state import save_state
+from nh_dl.storage import scan_completed_ids
+from nh_dl.ui import (
     BatchLogBuffer,
     console,
     create_download_progress,

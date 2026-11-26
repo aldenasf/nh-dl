@@ -1,4 +1,4 @@
-# nhentai-cli
+# nh-dl
 
 A simple CLI to batch download nhentai galleries from a list of codes or your account favorites.
 

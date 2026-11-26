@@ -37,7 +37,7 @@ QUESTIONARY_STYLE = QStyle(
 
 
 def print_banner(subtitle: str | None = None) -> None:
-    title = Text("nhentai-cli", style="bold bright_magenta")
+    title = Text("nh-dl", style="bold bright_magenta")
     if subtitle:
         title.append(f"  •  {subtitle}", style="dim")
     console.print(Panel.fit(title, border_style="cyan", padding=(0, 2)))
@@ -130,7 +130,7 @@ class BatchLogBuffer:
             color_system=console.color_system,
             legacy_windows=False,
         )
-        offscreen.print(Panel.fit(Text("nhentai-cli", style="bold bright_magenta"), border_style="cyan", padding=(0, 2)))
+        offscreen.print(Panel.fit(Text("nh-dl", style="bold bright_magenta"), border_style="cyan", padding=(0, 2)))
         offscreen.print(f"[cyan]ℹ[/cyan] Queued [bold]{self.total}[/bold] codes for download.")
         offscreen.print(f"[cyan]ℹ[/cyan] Output folder: [dim]{escape(str(self.output_dir.resolve()))}[/dim]")
         offscreen.rule("", style="dim")
