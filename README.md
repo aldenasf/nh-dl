@@ -1,6 +1,6 @@
 # nh-dl
 
-A simple CLI to batch download nhentai galleries from a list of codes or your account favorites.
+A lightweight CLI batch downloader and offline local web reader for nhentai galleries.
 
 ## Requirements
 
@@ -51,11 +51,16 @@ python main.py --download-favorites -o ./downloads
 
 ### 4. Local Web Reader
 
-Browse and read downloaded galleries offline in a dark nhentai-styled local web UI (`127.0.0.1`):
+Browse, search, and read downloaded galleries completely offline in a dark nhentai-styled local web UI (`127.0.0.1`, read-only on your gallery files):
 ```bash
 python main.py --serve
 python main.py --serve -o ./downloads --port 8080
 ```
+
+- **Search & Autocomplete**: Filter by tags, artists, parodies, characters, groups, languages, titles (`title:"..."` / `jtitle:"..."`), page count (`pages:N`), or download date (`uploaded:Nd`), with `-` exclusion, search history, and cursor parameter actions.
+- **Library & Cards**: Language flags, full-title hover expansion, separate field + ascending/descending sort, and Tags/Artists directories.
+- **Reader**: Vertical scroll and single-page modes, fit options (`width` / `height` / `original`), keyboard shortcuts (`←`/`→`, `A`/`D`, `M`, `F`, `Esc`), and local bookmarks/progress saved to `.nh_dl_web.json`.
+- **Settings**: Switch or browse library folders and rescan on demand without restarting.
 
 ## Options
 
