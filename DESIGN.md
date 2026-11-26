@@ -105,3 +105,32 @@ downloads/
 3. **PDF Library**: Use `Pillow` alone instead of `img2pdf` + `Pillow`, since nhentai serves `.webp` and `Pillow` handles all formats with one dependency.
 4. **State Persistence**: Save recent non-sensitive settings to `.nhentai_cli.json` for interactive defaults and `--last` CLI replay.
 5. **Input Parsing**: Support mixed newlines, commas, `#` comments, URLs, and inline comma-separated strings.
+
+---
+
+## 7. Phase 3 Design: Reliability, Speed, and Smart Sync
+
+### Understanding Summary
+- **Goal**: Speed up large batches and repeat `--download-favorites` runs while improving CDN resilience.
+- **Non-Goals**: Offline web viewer, multi-gallery parallel downloads.
+
+### Assumptions & Non-Functional Requirements
+- **Performance**: Scan `output_dir` once per batch; skip already-complete galleries locally in <1ms with zero API calls.
+- **Scale**: Support 100s-1000s of galleries/favorites without hitting rate limits on incremental syncs.
+- **Reliability**: DoH resolves any `*.nhentai.net` subdomain with thread-safe caching; fast-skip verifies completeness against `info.json` or non-empty `.pdf`.
+
+### Final Design
+1. **Local Fast-Skip (`nhentai_cli/storage.py`)**:
+   - `scan_completed_ids(output_dir, output_format, flat) -> set[int]` scans `output_dir` once at startup.
+2. **Incremental Favorites (`nhentai_cli/favorites.py`, `cli.py`, `main.py`)**:
+   - Stop fetching favorite pages once a full page is already in `completed_ids`; `--full-sync` overrides this.
+3. **Shared Clients & CDN Mirrors (`nhentai_cli/dns.py`, `downloader.py`)**:
+   - Reuse one `nhentaipy.NHentai` client (via `asyncio.to_thread`) and one `aiohttp.ClientSession` per batch.
+   - Rotate across `i`, `i2`, `i3`, `i5`, `i7.nhentai.net` on network/5xx errors; try alternate extensions once on 404.
+4. **Tests (`tests/`)**:
+   - Unit tests for local index, incremental sync, mirror rotation, parsing, and PDF export.
+
+### Phase 3 Decision Log
+1. **Fast-Skip Strategy**: Single-pass disk scan instead of persistent SQLite/JSON cache, so local deletions or format changes are always respected.
+2. **Incremental Sync**: Early-stop on first full page of already-downloaded favorites, with `--full-sync` escape hatch.
+3. **CDN Fallback**: Mirror rotation + smart 404 extension fallback instead of retrying the same failing URL.
