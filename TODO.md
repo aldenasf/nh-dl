@@ -1,0 +1,4 @@
+- [x] option to export PDF (whether it'd be image along with PDF or PDF only)
+- [x] remember input txt file
+- [x] allow parsing input split by newline, comma, newline & comma (at the same time)
+- [ ] offline web viewer for downloaded??
