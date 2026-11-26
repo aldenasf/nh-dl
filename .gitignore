@@ -6,6 +6,7 @@ venv/
 downloads/
 failed_codes.txt
 .nh_dl.json
+.nh_dl_web.json
 .vscode/
 
 favorites.txt
