@@ -5,7 +5,7 @@ from colorama import Fore, Style
 
 from nhentai_cli.cli import (
     get_args,
-    load_codes_from_file,
+    parse_codes,
     print_info,
     print_success,
     print_warning,
@@ -17,6 +17,7 @@ from nhentai_cli.favorites import (
     fetch_all_favorite_ids,
     export_favorites_to_file,
 )
+from nhentai_cli.state import save_state
 
 async def download_codes_list(codes: list[int], config: dict):
     total = len(codes)
@@ -34,7 +35,8 @@ async def download_codes_list(codes: list[int], config: dict):
             output_dir=config["output"],
             naming_scheme=config["folder_name"],
             concurrency=config["concurrency"],
-            save_info=config["save_info"]
+            save_info=config["save_info"],
+            output_format=config.get("format", "image")
         )
 
         if ok:
@@ -125,6 +127,9 @@ async def run_batch():
     except (KeyboardInterrupt, EOFError):
         print("\nAborted.")
         sys.exit(0)
+    except ValueError as e:
+        print_error(str(e))
+        sys.exit(1)
 
     mode = config.get("mode")
 
@@ -133,19 +138,21 @@ async def run_batch():
         return
 
     if mode == "download_favorites":
+        save_state(config)
         await handle_download_favorites(config)
         return
 
     try:
-        codes = load_codes_from_file(config["input"])
+        codes = parse_codes(str(config["input"]))
     except Exception as e:
         print_error(str(e))
         sys.exit(1)
 
     if not codes:
-        print_info("No codes found in file.")
+        print_info("No codes found in input.")
         sys.exit(0)
 
+    save_state(config)
     await download_codes_list(codes, config)
 
 def main():
