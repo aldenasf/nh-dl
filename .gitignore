@@ -4,4 +4,5 @@ venv/
 .env
 downloads/
 failed_codes.txt
+.nhentai_cli.json
 .vscode/
