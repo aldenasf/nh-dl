@@ -78,12 +78,12 @@ downloads/
 ## 6. Phase 2 Design: PDF Export, State Persistence, and Flexible Input
 
 ### Understanding Summary
-- **Goal**: Add PDF export (`--format image|pdf|both`), remembered CLI/interactive settings (`.nhentai_cli.json` and `--last`), and mixed newline/comma/inline input parsing.
+- **Goal**: Add PDF export (`--format image|pdf|both`), remembered CLI/interactive settings (`.nh_dl.json` and `--last`), and mixed newline/comma/inline input parsing.
 - **Non-Goals**: Offline web viewer (deferred to a separate phase), PDF OCR or custom layouts.
 
 ### Assumptions & Non-Functional Requirements
 - **PDF Engine**: Single-dependency `Pillow` (`PIL.Image`) converts `.webp`/`.png`/`.jpg`/`.gif` pages to `RGB` and writes `<folder_name>.pdf` atomically via `.pdf.tmp`.
-- **Security**: `.nhentai_cli.json` is gitignored and never stores `NHENTAI_TOKEN` or `NHENTAI_API_KEY`.
+- **Security**: `.nh_dl.json` is gitignored and never stores `NHENTAI_TOKEN` or `NHENTAI_API_KEY`.
 - **Reliability**: Resume logic checks format-specific completion; existing local images are reused to build PDFs without re-downloading.
 
 ### Final Design
@@ -92,7 +92,7 @@ downloads/
    - `--last` flag to replay the last saved settings (overridable by explicit flags).
    - `parse_codes(raw_input)`: reads file if path exists, otherwise parses inline string; strips `#` comments, splits by `,` and `\n`, extracts numeric IDs/URLs, deduplicates in order.
 2. **State (`nh_dl/state.py`)**:
-   - Persists `input`, `output`, `folder_name`, `format`, and `concurrency` to `.nhentai_cli.json`.
+   - Persists `input`, `output`, `folder_name`, `format`, and `concurrency` to `.nh_dl.json`.
    - Pre-fills interactive prompts with saved values.
 3. **PDF & Storage (`nh_dl/pdf.py`, `storage.py`, `downloader.py`)**:
    - Saves `<folder_name>.pdf` inside `downloads/<folder_name>/`.
@@ -103,7 +103,7 @@ downloads/
 1. **Scope**: Implement TODO items 1-3 now; defer offline web viewer to a future phase.
 2. **PDF Location**: Store PDF inside the gallery folder alongside `cover.*` and `info.json`.
 3. **PDF Library**: Use `Pillow` alone instead of `img2pdf` + `Pillow`, since nhentai serves `.webp` and `Pillow` handles all formats with one dependency.
-4. **State Persistence**: Save recent non-sensitive settings to `.nhentai_cli.json` for interactive defaults and `--last` CLI replay.
+4. **State Persistence**: Save recent non-sensitive settings to `.nh_dl.json` for interactive defaults and `--last` CLI replay.
 5. **Input Parsing**: Support mixed newlines, commas, `#` comments, URLs, and inline comma-separated strings.
 
 ---

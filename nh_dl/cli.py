@@ -309,7 +309,7 @@ def get_args() -> dict:
     raw_input = parsed.input if parsed.input is not None else (base["input"] if parsed.last else None)
     if not raw_input:
         if parsed.last:
-            raise ValueError("No saved input found in .nhentai_cli.json. Pass -i/--input at least once.")
+            raise ValueError("No saved input found in .nh_dl.json. Pass -i/--input at least once.")
         return prompt_interactive()
 
     return {

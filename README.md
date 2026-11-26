@@ -57,7 +57,7 @@ python main.py --download-favorites -o ./downloads
 - `-f, --format`: Output format (`image`, `pdf`, `both`) (default: `image`)
 - `--flat`: Save PDF directly in output directory without creating subfolders
 - `-j, --concurrency`: Concurrent page downloads (default: `5`)
-- `--last`: Reuse last saved settings from `.nhentai_cli.json`
+- `--last`: Reuse last saved settings from `.nh_dl.json`
 - `--no-info`: Do not save info.json metadata
 - `--export-favorites FILE`: Export user favorite IDs to specified file
 - `--download-favorites`: Fetch user favorites and download them directly

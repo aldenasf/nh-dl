@@ -37,7 +37,7 @@ def test_parse_codes_mixed_delimiters(tmp_path):
 
 
 def test_state_roundtrip(tmp_path):
-    sf = tmp_path / ".nhentai_cli.json"
+    sf = tmp_path / ".nh_dl.json"
     save_state(
         {
             "input": "codes.txt",

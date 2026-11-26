@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-STATE_FILE = Path(".nhentai_cli.json")
+STATE_FILE = Path(".nh_dl.json")
 
 DEFAULT_STATE = {
     "input": "",
