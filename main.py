@@ -20,6 +20,7 @@ from nh_dl.favorites import (
 )
 from nh_dl.state import save_state
 from nh_dl.storage import scan_completed_ids
+from nh_dl.web.server import serve_web_ui
 from nh_dl.ui import (
     BatchLogBuffer,
     console,
@@ -186,6 +187,18 @@ async def run_batch(config: dict | None = None):
 
     if mode == "export_favorites":
         handle_export_favorites(config)
+        return
+
+    if mode == "serve":
+        try:
+            await serve_web_ui(
+                output_dir=config["output"],
+                port=config.get("port", 8080),
+                use_saved_library_dir=not config.get("output_explicit", False),
+            )
+        except RuntimeError as e:
+            print_error(str(e))
+            sys.exit(1)
         return
 
     if mode == "download_favorites":

@@ -87,10 +87,36 @@ def prompt_interactive() -> dict:
                 questionary.Choice("Download from codes file or list", value="download_file"),
                 questionary.Choice("Download all user favorites directly", value="download_favorites"),
                 questionary.Choice("Export user favorites to a .txt file", value="export_favorites"),
+                questionary.Choice("Launch local web reader", value="serve"),
             ],
             style=QUESTIONARY_STYLE,
         )
     )
+
+    if mode == "serve":
+        out_str = _ask_or_abort(
+            questionary.path(
+                "Downloads directory:",
+                default=state["output"],
+                only_directories=True,
+                style=QUESTIONARY_STYLE,
+            )
+        ).strip(' "\'')
+        port_str = _ask_or_abort(
+            questionary.text(
+                "Port:",
+                default="8080",
+                validate=lambda val: (val.isdigit() and 1 <= int(val) <= 65535) or "Enter a port between 1 and 65535",
+                style=QUESTIONARY_STYLE,
+            )
+        ).strip()
+        return {
+            "mode": "serve",
+            "_interactive": True,
+            "output": Path(out_str) if out_str else Path(state["output"]),
+            "output_explicit": True,
+            "port": int(port_str),
+        }
 
     if mode in ("download_favorites", "export_favorites"):
         env_token = os.environ.get("NHENTAI_TOKEN") or os.environ.get("NHENTAI_SESSION_ID", "")
@@ -275,7 +301,14 @@ def get_args() -> dict:
     fav_group.add_argument('--token', '--sessionid', type=str, default=os.environ.get("NHENTAI_TOKEN") or os.environ.get("NHENTAI_SESSION_ID"), help="nhentai access_token")
     fav_group.add_argument('--api-key', '--key', type=str, default=os.environ.get("NHENTAI_API_KEY"), help="nhentai API key")
 
+    web_group = parser.add_argument_group("local web reader")
+    web_group.add_argument('--serve', action='store_true', help="launch local offline web reader for downloaded galleries")
+    web_group.add_argument('--port', type=int, default=8080, help="port for local web reader (default: 8080)")
+
     parsed = parser.parse_args()
+    if not (1 <= parsed.port <= 65535):
+        raise ValueError("Port must be between 1 and 65535.")
+
     base = load_state() if parsed.last else dict(DEFAULT_STATE)
 
     output_dir = parsed.output if parsed.output is not None else Path(base["output"])
@@ -283,6 +316,14 @@ def get_args() -> dict:
     output_format = parsed.format if parsed.format is not None else base["format"]
     flat = parsed.flat if parsed.flat is not None else base["flat"]
     concurrency = parsed.concurrency if parsed.concurrency is not None else base["concurrency"]
+
+    if parsed.serve:
+        return {
+            "mode": "serve",
+            "output": output_dir,
+            "output_explicit": parsed.output is not None,
+            "port": parsed.port,
+        }
 
     auth_kwargs = {"token": parsed.token, "api_key": parsed.api_key}
 
