@@ -71,4 +71,37 @@ downloads/
 4. **Coloring**: `colorama` for cross-platform, zero-bloat ANSI terminal coloring.
 5. **Naming**: `--folder-name both` (`[code] title`) as default.
 6. **Archival Integrity**: Downloads `cover.jpg` locally alongside pages for 100% offline self-containment.
-7. **Future Scope (Phase 2)**: Export to PDF, user favorites auto-fetcher, and local web reader backend.
+7. **Future Scope**: Offline web reader backend.
+
+---
+
+## 6. Phase 2 Design: PDF Export, State Persistence, and Flexible Input
+
+### Understanding Summary
+- **Goal**: Add PDF export (`--format image|pdf|both`), remembered CLI/interactive settings (`.nhentai_cli.json` and `--last`), and mixed newline/comma/inline input parsing.
+- **Non-Goals**: Offline web viewer (deferred to a separate phase), PDF OCR or custom layouts.
+
+### Assumptions & Non-Functional Requirements
+- **PDF Engine**: Single-dependency `Pillow` (`PIL.Image`) converts `.webp`/`.png`/`.jpg`/`.gif` pages to `RGB` and writes `<folder_name>.pdf` atomically via `.pdf.tmp`.
+- **Security**: `.nhentai_cli.json` is gitignored and never stores `NHENTAI_TOKEN` or `NHENTAI_API_KEY`.
+- **Reliability**: Resume logic checks format-specific completion; existing local images are reused to build PDFs without re-downloading.
+
+### Final Design
+1. **CLI (`nhentai_cli/cli.py`)**:
+   - `-f, --format {image,pdf,both}` (default `image`).
+   - `--last` flag to replay the last saved settings (overridable by explicit flags).
+   - `parse_codes(raw_input)`: reads file if path exists, otherwise parses inline string; strips `#` comments, splits by `,` and `\n`, extracts numeric IDs/URLs, deduplicates in order.
+2. **State (`nhentai_cli/state.py`)**:
+   - Persists `input`, `output`, `folder_name`, `format`, and `concurrency` to `.nhentai_cli.json`.
+   - Pre-fills interactive prompts with saved values.
+3. **PDF & Storage (`nhentai_cli/pdf.py`, `storage.py`, `downloader.py`)**:
+   - Saves `<folder_name>.pdf` inside `downloads/<folder_name>/`.
+   - Keeps `cover.*` and `info.json` in all modes (`image`, `pdf`, `both`).
+   - Deletes page images (`001.*`..`N.*`) after PDF creation only in `pdf` mode.
+
+### Phase 2 Decision Log
+1. **Scope**: Implement TODO items 1-3 now; defer offline web viewer to a future phase.
+2. **PDF Location**: Store PDF inside the gallery folder alongside `cover.*` and `info.json`.
+3. **PDF Library**: Use `Pillow` alone instead of `img2pdf` + `Pillow`, since nhentai serves `.webp` and `Pillow` handles all formats with one dependency.
+4. **State Persistence**: Save recent non-sensitive settings to `.nhentai_cli.json` for interactive defaults and `--last` CLI replay.
+5. **Input Parsing**: Support mixed newlines, commas, `#` comments, URLs, and inline comma-separated strings.
