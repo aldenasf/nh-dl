@@ -65,8 +65,9 @@ def parse_codes(raw_input: str) -> list[int]:
         with open(candidate, 'r', encoding='utf-8') as f:
             return parse_codes_text(f.read())
 
+    is_inline_list = ',' in cleaned or '\n' in cleaned
     is_url = bool(re.match(r'^https?://', cleaned, re.IGNORECASE))
-    if not is_url and (cleaned.lower().endswith('.txt') or '/' in cleaned or '\\' in cleaned):
+    if not is_inline_list and not is_url and (cleaned.lower().endswith('.txt') or '/' in cleaned or '\\' in cleaned):
         raise FileNotFoundError(f"File not found: {cleaned}")
 
     return parse_codes_text(cleaned)
