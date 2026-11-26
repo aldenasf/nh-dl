@@ -167,3 +167,53 @@ downloads/
 1. **Main-Buffer Redraw vs. Alternate Screen**: Chose main-buffer clear-and-redraw so mouse-wheel scrollback and post-exit history work like standard CLI tools (similar to Claude Code / Antigravity CLI).
 2. **Full History Redraw vs. Rolling Viewport**: Chose full structured `LogEntry` redraw so older completed lines also re-fit on resize.
 3. **Debounced Single-Write Buffer**: Chose 150 ms debounce + single `StringIO` write to guarantee zero impact on `asyncio` download throughput.
+
+---
+
+## 8. Phase 5 Design: Local Offline Web Reader
+
+### Understanding Summary
+- **What is being built**: An offline-first local web library browser and manga reader integrated into `nh-dl` (`python main.py --serve` / interactive menu), styled to closely match the dark-themed **nhentai.net** UI.
+- **Why it exists**: Fulfills the offline web viewer item in `TODO.md` and `docs/DESIGN.md` for browsing, searching, and reading downloaded galleries without relying on the live nhentai site.
+- **Who it is for**: Single user on the local machine (`127.0.0.1` only), with no authentication required.
+- **Core features (v1)**:
+  - Cover grid with instant search and filtering (title, `#code`, tag, artist, parody, character, group, language), plus Tags/Artists directories and sort/pagination controls.
+  - Gallery detail page with clickable metadata pills, page count, Resume/Read/Bookmark/Open PDF actions, and lazy-loaded page thumbnail grid.
+  - Vertical scroll and single-page reading modes, fit modes, keyboard navigation, and next-page preloading.
+  - Local bookmarks and reading progress persisted in `.nh_dl_web.json` (gitignored).
+- **Key constraints**: Strictly read-only on `downloads/`; zero new Python dependencies and no Node/npm build step; reuses `nh_dl/storage.py` and `aiohttp`.
+- **Explicit non-goals**: Triggering downloads or syncing favorites from the web UI, LAN/remote exposure or user accounts, modifying/deleting gallery files or `info.json` from the browser, and inline PDF-to-image rendering.
+
+### Assumptions & Non-Functional Requirements
+- **Performance**: Startup scan of 100s–1,000s of galleries completes in tens to a few hundred milliseconds; search/filter interactions run in-memory in JS (<5 ms); local image streaming uses `aiohttp.web.FileResponse` with cache headers.
+- **Scale**: Designed for a single local user and libraries from ~140 galleries up to several thousand galleries.
+- **Security & Privacy**: Binds strictly to `127.0.0.1`; `/media/{key}/{filename}` enforces `Path.is_relative_to()` containment and indexed-file validation against path traversal; metadata rendered via safe DOM text nodes (`textContent`) to prevent XSS; zero external network calls/CDNs.
+- **Reliability & Availability**: Runs on demand via CLI; tolerates empty/missing `output_dir`, missing/corrupt `info.json`, missing `cover.*`, flat/subfolder PDFs, and corrupt `.nh_dl_web.json`; reports port conflicts cleanly.
+- **Maintenance & Ownership**: Isolated inside `nh_dl/web/` with zero new runtime dependencies.
+
+### Key Risks & Mitigations
+- **Path traversal on `/media/`**: Mitigated via resolved path containment checks (`is_relative_to(gallery_root)`) and filename allowlisting against indexed gallery files.
+- **State corruption on rapid reader progress writes**: Mitigated via debounced client `PATCH /api/state` calls and atomic temp-file-and-replace writes on `.nh_dl_web.json`.
+- **Duplicate gallery IDs or missing `info.json`**: Mitigated via unique gallery URL keys and graceful fallback to `_extract_id_from_name()` and folder titles.
+
+### Final Design
+1. **CLI & Package Layout (`nh_dl/web/`, `nh_dl/cli.py`, `main.py`)**:
+   - Add `--serve` and `--port` (default `8080`) flags plus an interactive menu entry.
+   - Bind `aiohttp.web.AppRunner` strictly to `127.0.0.1:<port>`, print `Web reader running at http://127.0.0.1:<port>`, and exit cleanly on `Ctrl+C` (no auto-open browser).
+2. **Library Indexer & API (`nh_dl/web/library.py`, `nh_dl/web/server.py`)**:
+   - Reuses `IMAGE_EXTS`, `get_page_images`, `get_pdf_path`, and `_extract_id_from_name` from `nh_dl/storage.py`.
+   - Scans `output_dir` into memory at startup (`info.json` primary, folder/PDF fallback) and exposes `GET /`, `GET /static/*`, `GET /api/galleries`, `GET /api/galleries/{key}`, `POST /api/rescan`, `GET/PATCH /api/state`, and `GET /media/{key}/{filename}`.
+3. **Reader State (`nh_dl/web/state.py`)**:
+   - Stores `bookmarks`, `progress` (`page`, `updated_at`), and `reader_prefs` (`mode`, `fit`) atomically in `.nh_dl_web.json` (added to `.gitignore`).
+4. **nhentai-Styled Vanilla SPA (`nh_dl/web/static/`)**:
+   - Dark charcoal palette (`#0d0d0d`, `#1f1f1f`, `#ed2553` accent), hash routing (`#/`, `#/g/{key}`, `#/read/{key}/{page}`, `#/favorites`, `#/tags`, `#/artists`), instant search/tag filtering, gallery detail + thumbnail grid, and vertical/single-page keyboard reader with page preloading.
+5. **Testing (`tests/`)**:
+   - Unit tests for library indexing edge cases and atomic `.nh_dl_web.json` persistence, plus `aiohttp.test_utils` integration tests for API routes and path-traversal rejection (`403`/`404`).
+
+### Phase 5 Decision Log
+1. **Purpose**: Offline library browser & reader only (nhentai.net look & feel) instead of a combined downloader dashboard — keeps scope focused and avoids duplicating CLI download workflows.
+2. **Project Placement**: Integrated inside `nh-dl` (`nh_dl/web/`) instead of a separate repo — reuses `nh_dl/storage.py`, `aiohttp`, and `.nh_dl.json` with zero duplicated parsing logic and no meaningful runtime speed penalty.
+3. **Architecture**: `aiohttp` JSON API + server-hosted vanilla SPA (`Option A`) over SSR HTML (`Option B`) or SQLite + `watchdog` (`Option C`) — fastest in-memory search/filter and reader switching with zero build tools or new dependencies.
+4. **Access & Storage Safety**: `127.0.0.1` loopback-only and strictly read-only on `downloads/`, while persisting bookmarks/progress in `.nh_dl_web.json` rather than browser-only `localStorage`.
+5. **Format Support**: Image folders + `info.json` primary with graceful folder/PDF fallback rather than strict `info.json`-only or inline PDF-to-image rendering.
+6. **Startup Behavior**: Print `http://127.0.0.1:<port>` URL only without auto-opening a browser tab.

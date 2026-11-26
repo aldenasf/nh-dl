@@ -49,6 +49,14 @@ python main.py --export-favorites my_favorites.txt
 python main.py --download-favorites -o ./downloads
 ```
 
+### 4. Local Web Reader
+
+Browse and read downloaded galleries offline in a dark nhentai-styled local web UI (`127.0.0.1`):
+```bash
+python main.py --serve
+python main.py --serve -o ./downloads --port 8080
+```
+
 ## Options
 
 - `-i, --input, -c, --codes`: Path to codes file or comma-separated codes/URLs
@@ -64,3 +72,5 @@ python main.py --download-favorites -o ./downloads
 - `--full-sync`: Check all favorite pages instead of stopping at already-downloaded ones
 - `--token`: nhentai access_token
 - `--api-key`: nhentai API key
+- `--serve`: Launch local offline web reader for downloaded galleries
+- `--port`: Port for local web reader (default: `8080`)
