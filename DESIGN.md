@@ -134,3 +134,36 @@ downloads/
 1. **Fast-Skip Strategy**: Single-pass disk scan instead of persistent SQLite/JSON cache, so local deletions or format changes are always respected.
 2. **Incremental Sync**: Early-stop on first full page of already-downloaded favorites, with `--full-sync` escape hatch.
 3. **CDN Fallback**: Mirror rotation + smart 404 extension fallback instead of retrying the same failing URL.
+
+
+---
+
+## 7. Phase 4 Design: Resize-Aware Log Redraw
+
+### Understanding Summary
+- **Goal**: Dynamically re-render previously printed batch log lines (completed, skipped, failed) alongside the live `Batch` and active doujin progress bars when the terminal is resized horizontally.
+- **Mode**: Main terminal buffer (normal scrollback preserved; no alternate screen or TUI).
+- **Performance Constraint**: Redraws must not slow down or block concurrent `asyncio` downloads.
+- **Non-TTY Fallback**: Disabled automatically when stdout is piped or redirected.
+- **Explicit Non-Goals**: Full-screen TUI (`textual`), keyboard scrolling, or preserving pre-run terminal output on resize.
+
+### Assumptions
+- **Debounce**: Resize redraws trigger only after terminal width stabilizes for ~150 ms to avoid flicker and redundant writes while dragging.
+- **Scale**: Storing structured `LogEntry` records for hundreds or thousands of galleries has negligible memory overhead; a single buffered write takes ~1–2 ms.
+
+### Final Design
+1. **`BatchLogBuffer` (`nhentai_cli/ui.py`)**:
+   - Stores header metadata (queued count, output path) and structured `LogEntry(kind, index, total, code, detail)` records.
+   - Formats each entry to fit `max(40, cols) - 2` characters, truncating with `…` when narrow and expanding to full detail when wide.
+2. **Debounced Redraw in `_ResizableProgress` (`nhentai_cli/ui.py`)**:
+   - Monitors `_get_terminal_width()` on `make_tasks_table()`.
+   - When `cols != _last_cols` stabilizes for >= 150 ms (and `console.is_terminal` is `True`), renders the banner, header, divider, and all formatted `LogEntry` lines into an off-screen `Console(file=StringIO(), ...)` buffer, clears the screen (`\x1b[2J\x1b[3J\x1b[H` or `console.clear()` fallback), and flushes in one write before `Progress` draws the 2 live bars.
+3. **Batch Integration (`main.py`)**:
+   - `download_codes_list()` records entries in `BatchLogBuffer` and attaches it to `create_download_progress()`.
+4. **Tests (`tests/`)**:
+   - Unit tests for `BatchLogBuffer` width-fitting (truncation/expansion) and debounce state transitions.
+
+### Phase 4 Decision Log
+1. **Main-Buffer Redraw vs. Alternate Screen**: Chose main-buffer clear-and-redraw so mouse-wheel scrollback and post-exit history work like standard CLI tools (similar to Claude Code / Antigravity CLI).
+2. **Full History Redraw vs. Rolling Viewport**: Chose full structured `LogEntry` redraw so older completed lines also re-fit on resize.
+3. **Debounced Single-Write Buffer**: Chose 150 ms debounce + single `StringIO` write to guarantee zero impact on `asyncio` download throughput.

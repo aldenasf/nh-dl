@@ -2,29 +2,20 @@ import argparse
 import os
 import re
 from pathlib import Path
-from colorama import Fore, Style, init
 from dotenv import load_dotenv
+import questionary
 
 from .state import DEFAULT_STATE, load_state
+from .ui import (
+    QUESTIONARY_STYLE,
+    print_banner,
+    print_error,
+    print_info,
+    print_success,
+    print_warning,
+)
 
 load_dotenv()
-init(autoreset=True)
-
-
-def print_info(text: str) -> None:
-    print(f"{Fore.CYAN}[INFO]{Style.RESET_ALL} {text}")
-
-
-def print_success(text: str) -> None:
-    print(f"{Fore.GREEN}[SUCCESS]{Style.RESET_ALL} {text}")
-
-
-def print_warning(text: str) -> None:
-    print(f"{Fore.YELLOW}[WARN]{Style.RESET_ALL} {text}")
-
-
-def print_error(text: str) -> None:
-    print(f"{Fore.RED}[ERROR]{Style.RESET_ALL} {text}")
 
 
 def parse_code_token(token: str) -> int | None:
@@ -77,62 +68,105 @@ def load_codes_from_file(file_path: Path) -> list[int]:
     return parse_codes(str(file_path))
 
 
-def _prompt_choice(label: str, valid: tuple[str, ...], default: str) -> str:
-    val = input(f"{Fore.YELLOW}{label} [{default}]: {Style.RESET_ALL}").strip().lower()
-    return val if val in valid else default
-
-
-def _prompt_bool(label: str, default: bool) -> bool:
-    hint = "Y/n" if default else "y/N"
-    val = input(f"{Fore.YELLOW}{label} ({hint}): {Style.RESET_ALL}").strip().lower()
-    if val in ('y', 'yes'):
-        return True
-    if val in ('n', 'no'):
-        return False
-    return default
+def _ask_or_abort(prompt_obj):
+    result = prompt_obj.ask()
+    if result is None:
+        raise KeyboardInterrupt
+    return result
 
 
 def prompt_interactive() -> dict:
     state = load_state()
 
-    print(f"{Fore.CYAN}--- nhentai-cli ---{Style.RESET_ALL}")
-    print("1. Download from codes file or list")
-    print("2. Download all user favorites directly")
-    print("3. Export user favorites to a .txt file")
+    print_banner("Interactive Mode")
 
-    choice = input(f"{Fore.YELLOW}Select mode (1/2/3) [1]: {Style.RESET_ALL}").strip()
+    mode = _ask_or_abort(
+        questionary.select(
+            "Select mode:",
+            choices=[
+                questionary.Choice("Download from codes file or list", value="download_file"),
+                questionary.Choice("Download all user favorites directly", value="download_favorites"),
+                questionary.Choice("Export user favorites to a .txt file", value="export_favorites"),
+            ],
+            style=QUESTIONARY_STYLE,
+        )
+    )
 
-    if choice in ('2', '3'):
+    if mode in ("download_favorites", "export_favorites"):
         env_token = os.environ.get("NHENTAI_TOKEN") or os.environ.get("NHENTAI_SESSION_ID", "")
-        prompt_text = f"Enter nhentai access_token [{env_token}]: " if env_token else "Enter nhentai access_token: "
-        token = input(f"{Fore.YELLOW}{prompt_text}{Style.RESET_ALL}").strip(' "\'') or env_token
+        token_label = (
+            "Enter nhentai access_token (leave blank to use .env):"
+            if env_token
+            else "Enter nhentai access_token:"
+        )
+        raw_token = _ask_or_abort(
+            questionary.password(token_label, style=QUESTIONARY_STYLE)
+        ).strip(' "\'')
+        token = raw_token or env_token
 
-        if choice == '2':
-            out_str = input(f"{Fore.YELLOW}Output directory [{state['output']}]: {Style.RESET_ALL}").strip(' "\'')
-            fmt = _prompt_choice("Output format (image/pdf/both)", ('image', 'pdf', 'both'), state['format'])
-            flat = _prompt_bool("Flat PDF output (no subfolders)", state['flat']) if fmt in ('pdf', 'both') else False
+        if mode == "download_favorites":
+            out_str = _ask_or_abort(
+                questionary.path(
+                    "Output directory:",
+                    default=state["output"],
+                    only_directories=True,
+                    style=QUESTIONARY_STYLE,
+                )
+            ).strip(' "\'')
+            fmt = _ask_or_abort(
+                questionary.select(
+                    "Output format:",
+                    choices=["image", "pdf", "both"],
+                    default=state["format"],
+                    style=QUESTIONARY_STYLE,
+                )
+            )
+            flat = (
+                _ask_or_abort(
+                    questionary.confirm(
+                        "Flat PDF output (no subfolders)?",
+                        default=state["flat"],
+                        style=QUESTIONARY_STYLE,
+                    )
+                )
+                if fmt in ("pdf", "both")
+                else False
+            )
             return {
                 "mode": "download_favorites",
+                "_interactive": True,
                 "token": token,
-                "output": Path(out_str) if out_str else Path(state['output']),
-                "folder_name": state['folder_name'],
+                "output": Path(out_str) if out_str else Path(state["output"]),
+                "folder_name": state["folder_name"],
                 "format": fmt,
                 "flat": flat,
-                "concurrency": state['concurrency'],
+                "concurrency": state["concurrency"],
                 "save_info": True,
             }
-        else:
-            out_txt = input(f"{Fore.YELLOW}Save favorites to [favorites.txt]: {Style.RESET_ALL}").strip(' "\'')
-            return {
-                "mode": "export_favorites",
-                "token": token,
-                "export_file": Path(out_txt) if out_txt else Path("favorites.txt"),
-            }
+
+        out_txt = _ask_or_abort(
+            questionary.path(
+                "Save favorites to:",
+                default="favorites.txt",
+                style=QUESTIONARY_STYLE,
+            )
+        ).strip(' "\'')
+        return {
+            "mode": "export_favorites",
+            "_interactive": True,
+            "token": token,
+            "export_file": Path(out_txt) if out_txt else Path("favorites.txt"),
+        }
 
     last_input = state["input"]
     while True:
-        prompt_label = f"Enter codes file or list [{last_input}]: " if last_input else "Enter codes file or list: "
-        raw = input(f"{Fore.YELLOW}{prompt_label}{Style.RESET_ALL}").strip(' "\'') or last_input
+        raw = _ask_or_abort(
+            questionary.path(
+                "Codes file or comma-separated codes/URLs:",
+                default=last_input,
+                style=QUESTIONARY_STYLE,
+            )
+        ).strip(' "\'')
         if not raw:
             print_error("Input cannot be empty.")
             continue
@@ -147,18 +181,57 @@ def prompt_interactive() -> dict:
         codes_input = raw
         break
 
-    out_str = input(f"{Fore.YELLOW}Output directory [{state['output']}]: {Style.RESET_ALL}").strip(' "\'')
-    output_dir = Path(out_str) if out_str else Path(state['output'])
+    out_str = _ask_or_abort(
+        questionary.path(
+            "Output directory:",
+            default=state["output"],
+            only_directories=True,
+            style=QUESTIONARY_STYLE,
+        )
+    ).strip(' "\'')
+    output_dir = Path(out_str) if out_str else Path(state["output"])
 
-    scheme = _prompt_choice("Folder naming (both/title/code)", ('both', 'title', 'code'), state['folder_name'])
-    fmt = _prompt_choice("Output format (image/pdf/both)", ('image', 'pdf', 'both'), state['format'])
-    flat = _prompt_bool("Flat PDF output (no subfolders)", state['flat']) if fmt in ('pdf', 'both') else False
+    scheme = _ask_or_abort(
+        questionary.select(
+            "Folder naming strategy:",
+            choices=["both", "title", "code"],
+            default=state["folder_name"],
+            style=QUESTIONARY_STYLE,
+        )
+    )
+    fmt = _ask_or_abort(
+        questionary.select(
+            "Output format:",
+            choices=["image", "pdf", "both"],
+            default=state["format"],
+            style=QUESTIONARY_STYLE,
+        )
+    )
+    flat = (
+        _ask_or_abort(
+            questionary.confirm(
+                "Flat PDF output (no subfolders)?",
+                default=state["flat"],
+                style=QUESTIONARY_STYLE,
+            )
+        )
+        if fmt in ("pdf", "both")
+        else False
+    )
 
-    conc_str = input(f"{Fore.YELLOW}Concurrent downloads [{state['concurrency']}]: {Style.RESET_ALL}").strip()
-    concurrency = int(conc_str) if conc_str.isdigit() and int(conc_str) > 0 else state['concurrency']
+    conc_str = _ask_or_abort(
+        questionary.text(
+            "Concurrent page downloads:",
+            default=str(state["concurrency"]),
+            validate=lambda val: (val.isdigit() and int(val) > 0) or "Enter a positive integer",
+            style=QUESTIONARY_STYLE,
+        )
+    ).strip()
+    concurrency = int(conc_str)
 
     return {
         "mode": "download_file",
+        "_interactive": True,
         "input": codes_input,
         "output": output_dir,
         "folder_name": scheme,
@@ -171,24 +244,36 @@ def prompt_interactive() -> dict:
 
 def get_args() -> dict:
     parser = argparse.ArgumentParser(
-        description="Simple CLI to batch download nhentai galleries.",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter
+        prog="nhentai-cli",
+        description="Batch download nhentai galleries as images or PDFs.",
+        epilog=(
+            "examples:\n"
+            "  python main.py                          # interactive setup\n"
+            "  python main.py -i codes.txt -f pdf      # batch export to PDF\n"
+            "  python main.py -i 177013,228922 -j 8    # inline codes with 8 workers\n"
+            "  python main.py --download-favorites     # sync account favorites\n"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument('-i', '--input', '-c', '--codes', type=str, help="Path to codes file or comma-separated codes/URLs")
-    parser.add_argument('-o', '--output', type=Path, default=None, help="Output directory (default: ./downloads)")
-    parser.add_argument('-n', '--folder-name', choices=['both', 'title', 'code'], default=None, help="Folder naming strategy (default: both)")
-    parser.add_argument('-f', '--format', choices=['image', 'pdf', 'both'], default=None, help="Output format (default: image)")
-    parser.add_argument('--flat', action='store_true', default=None, help="Save PDF directly in output directory without subfolders")
-    parser.add_argument('-j', '--concurrency', type=int, default=None, help="Number of concurrent page downloads (default: 5)")
-    parser.add_argument('--last', action='store_true', help="Reuse last saved settings")
-    parser.add_argument('--no-info', action='store_true', help="Skip saving info.json")
 
-    group = parser.add_argument_group("favorites options")
-    group.add_argument('--export-favorites', type=Path, metavar="FILE", help="Fetch favorites and export codes to a .txt file")
-    group.add_argument('--download-favorites', action='store_true', help="Fetch favorites and immediately download all of them")
-    group.add_argument('--full-sync', action='store_true', help="Fetch all favorite pages instead of stopping at already-downloaded ones")
-    group.add_argument('--token', '--sessionid', type=str, default=os.environ.get("NHENTAI_TOKEN") or os.environ.get("NHENTAI_SESSION_ID"), help="nhentai access_token")
-    group.add_argument('--api-key', '--key', type=str, default=os.environ.get("NHENTAI_API_KEY"), help="nhentai API key")
+    io_group = parser.add_argument_group("input & output")
+    io_group.add_argument('-i', '--input', '-c', '--codes', type=str, help="path to codes file or comma-separated codes/URLs")
+    io_group.add_argument('-o', '--output', type=Path, default=None, help="output directory (default: ./downloads)")
+    io_group.add_argument('--last', action='store_true', help="reuse last saved settings")
+
+    fmt_group = parser.add_argument_group("download & formatting")
+    fmt_group.add_argument('-n', '--folder-name', choices=['both', 'title', 'code'], default=None, help="folder naming strategy (default: both)")
+    fmt_group.add_argument('-f', '--format', choices=['image', 'pdf', 'both'], default=None, help="output format (default: image)")
+    fmt_group.add_argument('--flat', action='store_true', default=None, help="save PDF directly in output directory without subfolders")
+    fmt_group.add_argument('-j', '--concurrency', type=int, default=None, help="number of concurrent page downloads (default: 5)")
+    fmt_group.add_argument('--no-info', action='store_true', help="skip saving info.json")
+
+    fav_group = parser.add_argument_group("favorites & authentication")
+    fav_group.add_argument('--export-favorites', type=Path, metavar="FILE", help="fetch favorites and export codes to a .txt file")
+    fav_group.add_argument('--download-favorites', action='store_true', help="fetch favorites and immediately download all of them")
+    fav_group.add_argument('--full-sync', action='store_true', help="fetch all favorite pages instead of stopping at already-downloaded ones")
+    fav_group.add_argument('--token', '--sessionid', type=str, default=os.environ.get("NHENTAI_TOKEN") or os.environ.get("NHENTAI_SESSION_ID"), help="nhentai access_token")
+    fav_group.add_argument('--api-key', '--key', type=str, default=os.environ.get("NHENTAI_API_KEY"), help="nhentai API key")
 
     parsed = parser.parse_args()
     base = load_state() if parsed.last else dict(DEFAULT_STATE)

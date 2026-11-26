@@ -1,12 +1,13 @@
 import asyncio
-import shutil
 import tempfile
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 import aiohttp
-from tqdm import tqdm
 import nhentaipy
 from nhentaipy.errors import NotFound, NHentaiError
+from rich.markup import escape
+from rich.progress import Progress
 
 from .dns import enable_doh_resolver
 from .pdf import build_pdf_from_images
@@ -19,6 +20,7 @@ from .storage import (
     get_pdf_path,
     remove_page_images,
 )
+from .ui import create_download_progress
 
 enable_doh_resolver()
 
@@ -93,24 +95,11 @@ def extract_metadata(gallery, cover_filename: str = "cover.jpg") -> dict:
         "downloaded_at": datetime.now(timezone.utc).isoformat()
     }
 
-class GalleryProgressBar(tqdm):
-    total_bytes: int = 0
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.dynamic_ncols = False
-
-    @property
-    def format_dict(self):
-        d = super().format_dict
-        elapsed = max(0.001, d['elapsed'])
-        mb = self.total_bytes / (1024 * 1024)
-        mb_rate = mb / elapsed
-        d['speed'] = f"{mb_rate:.1f} MB/s"
-        cols = shutil.get_terminal_size((80, 20)).columns
-        self.ncols = cols
-        d['ncols'] = cols
-        return d
+def _truncate_title(title: str, max_len: int = 34) -> str:
+    clean = " ".join(title.split())
+    if len(clean) <= max_len:
+        return clean
+    return clean[: max_len - 1].rstrip() + "…"
 
 def _replace_host(url: str, new_host: str) -> str:
     scheme, rest = url.split("://", 1)
@@ -199,6 +188,8 @@ async def _download_pages(
     session: aiohttp.ClientSession,
     cover_dest: Path | None = None,
     cover_ext: str = ".jpg",
+    title: str = "",
+    progress: Progress | None = None,
 ) -> tuple[bool, int]:
     total_pages = len(gallery.images.pages)
     semaphore = asyncio.Semaphore(concurrency)
@@ -215,36 +206,49 @@ async def _download_pages(
     else:
         cover_task = None
 
-    pbar = GalleryProgressBar(
-        total=total_pages,
-        desc=f"[{gallery_id}]",
-        bar_format="{desc} [{bar}] {n_fmt}/{total_fmt} ({percentage:3.0f}%) {speed}",
-        ascii=" =",
-        leave=False
-    )
+    short_title = escape(_truncate_title(title)) if title else ""
+    desc = f"[cyan][{gallery_id}][/cyan] {short_title}" if short_title else f"[cyan][{gallery_id}][/cyan]"
 
-    async def track_download(url: str, path: Path):
-        ok, b_count = await download_file(
-            session, url, path, semaphore, mirrors=IMAGE_MIRRORS, try_alt_exts=True
-        )
-        if ok:
-            pbar.total_bytes += b_count
-        pbar.update(1)
-        return ok
+    own_progress = progress is None
+    active_progress = create_download_progress() if own_progress else progress
 
-    for idx, page in enumerate(gallery.images.pages, start=1):
-        ext = get_page_extension(page)
-        page_url = f"https://i.nhentai.net/galleries/{media_id}/{idx}{ext}"
-        filename = f"{str(idx).zfill(pad_width)}{ext}"
-        dest = target_dir / filename
-        tasks.append(track_download(page_url, dest))
+    async def _run_tasks(prog: Progress):
+        page_task_id = prog.add_task(desc, total=total_pages, speed="0.0 MB/s")
+        total_bytes = 0
+        start_time = time.monotonic()
 
-    if cover_task is not None:
-        results = await asyncio.gather(*tasks, cover_task)
-        page_results = results[:-1]
+        async def track_download(url: str, path: Path):
+            nonlocal total_bytes
+            ok, b_count = await download_file(
+                session, url, path, semaphore, mirrors=IMAGE_MIRRORS, try_alt_exts=True
+            )
+            if ok:
+                total_bytes += b_count
+            elapsed = max(0.001, time.monotonic() - start_time)
+            mb_rate = (total_bytes / (1024 * 1024)) / elapsed
+            prog.update(page_task_id, advance=1, speed=f"{mb_rate:.1f} MB/s")
+            return ok
+
+        for idx, page in enumerate(gallery.images.pages, start=1):
+            ext = get_page_extension(page)
+            page_url = f"https://i.nhentai.net/galleries/{media_id}/{idx}{ext}"
+            filename = f"{str(idx).zfill(pad_width)}{ext}"
+            dest = target_dir / filename
+            tasks.append(track_download(page_url, dest))
+
+        try:
+            if cover_task is not None:
+                results = await asyncio.gather(*tasks, cover_task)
+                return results[:-1]
+            return await asyncio.gather(*tasks)
+        finally:
+            prog.remove_task(page_task_id)
+
+    if own_progress:
+        with active_progress:
+            page_results = await _run_tasks(active_progress)
     else:
-        page_results = await asyncio.gather(*tasks)
-    pbar.close()
+        page_results = await _run_tasks(active_progress)
 
     success_pages = sum(1 for r in page_results if r)
     return success_pages == total_pages, success_pages
@@ -260,6 +264,7 @@ async def download_gallery(
     flat: bool = False,
     client: nhentaipy.NHentai | None = None,
     session: aiohttp.ClientSession | None = None,
+    progress: Progress | None = None,
 ) -> tuple[bool, str]:
     api_client = client or nhentaipy.NHentai()
     try:
@@ -287,7 +292,8 @@ async def download_gallery(
             with tempfile.TemporaryDirectory(dir=output_dir, prefix=f".tmp_{gallery_id}_") as tmp:
                 tmp_dir = Path(tmp)
                 ok, success_pages = await _download_pages(
-                    gallery, gallery_id, media_id, tmp_dir, concurrency, http_session
+                    gallery, gallery_id, media_id, tmp_dir, concurrency, http_session,
+                    title=title, progress=progress,
                 )
                 if not ok:
                     return False, f"Incomplete: {success_pages}/{total_pages} pages downloaded"
@@ -295,7 +301,7 @@ async def download_gallery(
                     build_pdf_from_images(get_page_images(tmp_dir), pdf_path)
                 except Exception as e:
                     return False, f"PDF export failed: {e}"
-            return True, f"Saved PDF -> {pdf_path.name}"
+            return True, f"Saved PDF ({total_pages}p) -> {pdf_path.name}"
 
         gallery_dir = create_gallery_dir(output_dir, folder_name)
         pdf_path = (output_dir / f"{folder_name}.pdf") if flat else get_pdf_path(gallery_dir, folder_name)
@@ -311,7 +317,8 @@ async def download_gallery(
         cover_dest = gallery_dir / cover_filename
         if not has_images or not cover_dest.exists():
             ok, success_pages = await _download_pages(
-                gallery, gallery_id, media_id, gallery_dir, concurrency, http_session, cover_dest, cover_ext
+                gallery, gallery_id, media_id, gallery_dir, concurrency, http_session,
+                cover_dest, cover_ext, title=title, progress=progress,
             )
             if not ok:
                 return False, f"Incomplete: {success_pages}/{total_pages} pages downloaded"
@@ -325,7 +332,7 @@ async def download_gallery(
 
             if output_format == 'pdf':
                 remove_page_images(gallery_dir)
-                return True, f"Saved PDF -> {folder_name}/{pdf_path.name}"
+                return True, f"Saved PDF ({total_pages}p) -> {folder_name}/{pdf_path.name}"
             return True, f"Saved {total_pages} pages + PDF -> {folder_name}"
 
         return True, f"Downloaded {total_pages} pages -> {folder_name}"

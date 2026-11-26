@@ -161,3 +161,53 @@ def test_download_file_404_alt_extension(tmp_path):
         "https://i.nhentai.net/galleries/1/2.webp",
         "https://i.nhentai.net/galleries/1/2.jpg",
     ]
+
+
+
+def test_batch_log_buffer_width_fitting(tmp_path):
+    from rich.text import Text
+    from nhentai_cli.ui import BatchLogBuffer
+
+    buf = BatchLogBuffer(total=10, output_dir=tmp_path)
+    long_msg = "Downloaded 38 pages -> [537235] A Very Long Gallery Title That Should Truncate When Narrow"
+    entry = buf.add("success", 1, 10, 537235, long_msg)
+    buf.add("skip", 2, 10, 478120, "already completed locally, skipping.")
+    buf.add("error", 3, 10, 999999, "Not found")
+
+    narrow = Text.from_markup(buf.format_entry(entry, cols=60)).plain
+    wide = Text.from_markup(buf.format_entry(entry, cols=140)).plain
+
+    assert len(narrow) <= 58
+    assert narrow.endswith("…")
+    assert len(wide) > len(narrow)
+    assert "Truncate When Narrow" in wide
+
+    rendered = buf.render_to_ansi(cols=80)
+    assert "nhentai-cli" in rendered
+    assert "537235" in rendered
+    assert "478120" in rendered
+
+
+def test_progress_resize_debounce(tmp_path):
+    from nhentai_cli.ui import BatchLogBuffer, create_download_progress
+
+    buf = BatchLogBuffer(total=5, output_dir=tmp_path)
+    progress = create_download_progress(log_buffer=buf)
+    initial_cols = progress._last_cols
+
+    # Same width never triggers redraw
+    assert progress._should_redraw_on_resize(initial_cols, now=1.0) is False
+
+    # New width starts debounce timer
+    new_cols = initial_cols + 20
+    assert progress._should_redraw_on_resize(new_cols, now=1.0) is False
+    # Before 150ms: still False
+    assert progress._should_redraw_on_resize(new_cols, now=1.10) is False
+    # Different width mid-drag resets timer
+    new_cols_2 = new_cols + 10
+    assert progress._should_redraw_on_resize(new_cols_2, now=1.12) is False
+    assert progress._should_redraw_on_resize(new_cols_2, now=1.20) is False
+    # After >= 150ms stable: triggers redraw and updates _last_cols
+    assert progress._should_redraw_on_resize(new_cols_2, now=1.30) is True
+    assert progress._last_cols == new_cols_2
+    assert progress._should_redraw_on_resize(new_cols_2, now=1.50) is False
