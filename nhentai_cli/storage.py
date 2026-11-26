@@ -31,8 +31,44 @@ def save_info_json(gallery_dir: Path, data: dict) -> None:
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
 
-def is_gallery_complete(gallery_dir: Path, total_pages: int) -> bool:
+IMAGE_EXTS = {'.jpg', '.jpeg', '.png', '.webp', '.gif'}
+
+
+def get_page_images(gallery_dir: Path) -> list[Path]:
+    if not gallery_dir.exists():
+        return []
+    pages = [
+        p for p in gallery_dir.iterdir()
+        if p.is_file() and p.suffix.lower() in IMAGE_EXTS and p.stem.lower() != 'cover'
+    ]
+    return sorted(pages, key=lambda p: p.name)
+
+
+def get_pdf_path(gallery_dir: Path, folder_name: str | None = None) -> Path:
+    name = folder_name or gallery_dir.name
+    return gallery_dir / f"{name}.pdf"
+
+
+def remove_page_images(gallery_dir: Path) -> None:
+    for page_path in get_page_images(gallery_dir):
+        page_path.unlink(missing_ok=True)
+
+
+def is_gallery_complete(
+    gallery_dir: Path,
+    total_pages: int,
+    output_format: str = 'image',
+    folder_name: str | None = None
+) -> bool:
     if not gallery_dir.exists():
         return False
-    images = [p for p in gallery_dir.iterdir() if p.suffix.lower() in ('.jpg', '.png', '.webp', '.gif') and p.name != 'cover.jpg']
-    return len(images) >= total_pages
+
+    has_images = len(get_page_images(gallery_dir)) >= total_pages
+    pdf_path = get_pdf_path(gallery_dir, folder_name)
+    has_pdf = pdf_path.exists() and pdf_path.stat().st_size > 0
+
+    if output_format == 'pdf':
+        return has_pdf
+    if output_format == 'both':
+        return has_images and has_pdf
+    return has_images
