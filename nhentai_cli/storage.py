@@ -54,6 +54,75 @@ def remove_page_images(gallery_dir: Path) -> None:
         page_path.unlink(missing_ok=True)
 
 
+def _extract_id_from_name(name: str) -> int | None:
+    match = re.match(r'^\[(\d+)\]|^(\d+)$', name.strip())
+    if not match:
+        return None
+    raw = match.group(1) or match.group(2)
+    return int(raw) if raw else None
+
+
+def scan_completed_ids(
+    output_dir: Path,
+    output_format: str = 'image',
+    flat: bool = False
+) -> set[int]:
+    completed: set[int] = set()
+    if not output_dir.exists():
+        return completed
+
+    if flat and output_format == 'pdf':
+        for pdf_file in output_dir.glob("*.pdf"):
+            if pdf_file.is_file() and pdf_file.stat().st_size > 0:
+                gid = _extract_id_from_name(pdf_file.stem)
+                if gid is not None:
+                    completed.add(gid)
+        return completed
+
+    for entry in output_dir.iterdir():
+        if not entry.is_dir():
+            continue
+
+        gid: int | None = None
+        total_pages: int | None = None
+        info_path = entry / "info.json"
+
+        if info_path.is_file():
+            try:
+                with open(info_path, "r", encoding="utf-8") as f:
+                    info = json.load(f)
+                if isinstance(info.get("id"), int):
+                    gid = info["id"]
+                if isinstance(info.get("pages"), int):
+                    total_pages = info["pages"]
+            except Exception:
+                pass
+
+        if gid is None:
+            gid = _extract_id_from_name(entry.name)
+        if gid is None:
+            continue
+
+        pdf_path = (output_dir / f"{entry.name}.pdf") if flat else get_pdf_path(entry, entry.name)
+        has_pdf = pdf_path.exists() and pdf_path.stat().st_size > 0
+
+        if output_format == 'pdf':
+            if has_pdf:
+                completed.add(gid)
+            continue
+
+        if total_pages is None:
+            continue
+
+        has_images = len(get_page_images(entry)) >= total_pages
+        if output_format == 'image' and has_images:
+            completed.add(gid)
+        elif output_format == 'both' and has_images and has_pdf:
+            completed.add(gid)
+
+    return completed
+
+
 def is_gallery_complete(
     gallery_dir: Path,
     total_pages: int,
