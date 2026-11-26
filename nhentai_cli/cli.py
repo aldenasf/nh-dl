@@ -186,6 +186,7 @@ def get_args() -> dict:
     group = parser.add_argument_group("favorites options")
     group.add_argument('--export-favorites', type=Path, metavar="FILE", help="Fetch favorites and export codes to a .txt file")
     group.add_argument('--download-favorites', action='store_true', help="Fetch favorites and immediately download all of them")
+    group.add_argument('--full-sync', action='store_true', help="Fetch all favorite pages instead of stopping at already-downloaded ones")
     group.add_argument('--token', '--sessionid', type=str, default=os.environ.get("NHENTAI_TOKEN") or os.environ.get("NHENTAI_SESSION_ID"), help="nhentai access_token")
     group.add_argument('--api-key', '--key', type=str, default=os.environ.get("NHENTAI_API_KEY"), help="nhentai API key")
 
@@ -215,6 +216,7 @@ def get_args() -> dict:
             "folder_name": folder_name,
             "format": output_format,
             "flat": flat,
+            "full_sync": parsed.full_sync,
             "concurrency": concurrency,
             "save_info": not parsed.no_info,
         }

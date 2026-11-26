@@ -61,5 +61,6 @@ python main.py --download-favorites -o ./downloads
 - `--no-info`: Do not save info.json metadata
 - `--export-favorites FILE`: Export user favorite IDs to specified file
 - `--download-favorites`: Fetch user favorites and download them directly
+- `--full-sync`: Check all favorite pages instead of stopping at already-downloaded ones
 - `--token`: nhentai access_token
 - `--api-key`: nhentai API key

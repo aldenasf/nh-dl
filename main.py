@@ -1,6 +1,8 @@
 import asyncio
 import sys
 from pathlib import Path
+import aiohttp
+import nhentaipy
 from colorama import Fore, Style
 
 from nhentai_cli.cli import (
@@ -18,37 +20,57 @@ from nhentai_cli.favorites import (
     export_favorites_to_file,
 )
 from nhentai_cli.state import save_state
+from nhentai_cli.storage import scan_completed_ids
 
-async def download_codes_list(codes: list[int], config: dict):
+
+async def download_codes_list(codes: list[int], config: dict, completed_ids: set[int] | None = None):
     total = len(codes)
+    output_dir = config["output"]
+    output_format = config.get("format", "image")
+    flat = config.get("flat", False)
+
+    if completed_ids is None:
+        completed_ids = scan_completed_ids(output_dir, output_format, flat)
+
     print_info(f"Queued {total} codes for download.")
-    print_info(f"Output folder: {config['output'].resolve()}")
+    print_info(f"Output folder: {output_dir.resolve()}")
     print("-" * 50)
 
     succeeded = 0
+    skipped = 0
     failed = []
 
-    for index, code in enumerate(codes, start=1):
-        print(f"{Fore.MAGENTA}[{index}/{total}]{Style.RESET_ALL} Processing {Fore.CYAN}{code}{Style.RESET_ALL}...")
-        ok, message = await download_gallery(
-            gallery_id=code,
-            output_dir=config["output"],
-            naming_scheme=config["folder_name"],
-            concurrency=config["concurrency"],
-            save_info=config["save_info"],
-            output_format=config.get("format", "image"),
-            flat=config.get("flat", False)
-        )
+    api_client = nhentaipy.NHentai()
+    async with aiohttp.ClientSession() as http_session:
+        for index, code in enumerate(codes, start=1):
+            if code in completed_ids:
+                print(f"{Fore.MAGENTA}[{index}/{total}]{Style.RESET_ALL} {Fore.CYAN}{code}{Style.RESET_ALL} already completed locally, skipping.")
+                succeeded += 1
+                skipped += 1
+                continue
 
-        if ok:
-            print_success(message)
-            succeeded += 1
-        else:
-            print_error(f"[{code}] {message}")
-            failed.append(code)
+            print(f"{Fore.MAGENTA}[{index}/{total}]{Style.RESET_ALL} Processing {Fore.CYAN}{code}{Style.RESET_ALL}...")
+            ok, message = await download_gallery(
+                gallery_id=code,
+                output_dir=output_dir,
+                naming_scheme=config["folder_name"],
+                concurrency=config["concurrency"],
+                save_info=config["save_info"],
+                output_format=output_format,
+                flat=flat,
+                client=api_client,
+                session=http_session,
+            )
+
+            if ok:
+                print_success(message)
+                succeeded += 1
+            else:
+                print_error(f"[{code}] {message}")
+                failed.append(code)
 
     print("=" * 50)
-    print(f"Batch completed: {succeeded}/{total} succeeded.")
+    print(f"Batch completed: {succeeded}/{total} succeeded ({skipped} skipped locally).")
     
     if failed:
         failed_file = Path("failed_codes.txt")
@@ -106,12 +128,20 @@ async def handle_download_favorites(config: dict):
         print_error(f"Authentication failed: {e}")
         sys.exit(1)
 
+    completed_ids = scan_completed_ids(
+        config["output"], config.get("format", "image"), config.get("flat", False)
+    )
+    full_sync = config.get("full_sync", False)
+
     all_ids = []
     print_info("Fetching favorite galleries...")
     try:
         for page_num, batch in enumerate(fetch_all_favorite_ids(client), start=1):
             all_ids.extend(batch)
             print_info(f"Page {page_num}: retrieved {len(batch)} favorites (Total: {len(all_ids)})")
+            if not full_sync and batch and all(gid in completed_ids for gid in batch):
+                print_info("All favorites on this page are already downloaded locally. Stopping sync (use --full-sync to check all pages).")
+                break
     except Exception as e:
         print_error(str(e))
         sys.exit(1)
@@ -120,7 +150,7 @@ async def handle_download_favorites(config: dict):
         print_warning("No favorites found on your account.")
         return
 
-    await download_codes_list(all_ids, config)
+    await download_codes_list(all_ids, config, completed_ids=completed_ids)
 
 async def run_batch():
     try:
