@@ -8,6 +8,7 @@ DEFAULT_STATE = {
     "output": "./downloads",
     "folder_name": "both",
     "format": "image",
+    "flat": False,
     "concurrency": 5,
 }
 
@@ -38,6 +39,8 @@ def save_state(config: dict, state_path: Path = STATE_FILE) -> None:
         current["folder_name"] = config["folder_name"]
     if config.get("format") in ("image", "pdf", "both"):
         current["format"] = config["format"]
+    if isinstance(config.get("flat"), bool):
+        current["flat"] = config["flat"]
     if isinstance(config.get("concurrency"), int) and config["concurrency"] > 0:
         current["concurrency"] = config["concurrency"]
 

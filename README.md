@@ -55,6 +55,7 @@ python main.py --download-favorites -o ./downloads
 - `-o, --output`: Output directory (default: `./downloads`)
 - `-n, --folder-name`: Folder naming scheme (`both`, `title`, `code`) (default: `both`)
 - `-f, --format`: Output format (`image`, `pdf`, `both`) (default: `image`)
+- `--flat`: Save PDF directly in output directory without creating subfolders
 - `-j, --concurrency`: Concurrent page downloads (default: `5`)
 - `--last`: Reuse last saved settings from `.nhentai_cli.json`
 - `--no-info`: Do not save info.json metadata

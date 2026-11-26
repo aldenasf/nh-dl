@@ -36,7 +36,8 @@ async def download_codes_list(codes: list[int], config: dict):
             naming_scheme=config["folder_name"],
             concurrency=config["concurrency"],
             save_info=config["save_info"],
-            output_format=config.get("format", "image")
+            output_format=config.get("format", "image"),
+            flat=config.get("flat", False)
         )
 
         if ok:

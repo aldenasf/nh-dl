@@ -82,6 +82,16 @@ def _prompt_choice(label: str, valid: tuple[str, ...], default: str) -> str:
     return val if val in valid else default
 
 
+def _prompt_bool(label: str, default: bool) -> bool:
+    hint = "Y/n" if default else "y/N"
+    val = input(f"{Fore.YELLOW}{label} ({hint}): {Style.RESET_ALL}").strip().lower()
+    if val in ('y', 'yes'):
+        return True
+    if val in ('n', 'no'):
+        return False
+    return default
+
+
 def prompt_interactive() -> dict:
     state = load_state()
 
@@ -100,12 +110,14 @@ def prompt_interactive() -> dict:
         if choice == '2':
             out_str = input(f"{Fore.YELLOW}Output directory [{state['output']}]: {Style.RESET_ALL}").strip(' "\'')
             fmt = _prompt_choice("Output format (image/pdf/both)", ('image', 'pdf', 'both'), state['format'])
+            flat = _prompt_bool("Flat PDF output (no subfolders)", state['flat']) if fmt in ('pdf', 'both') else False
             return {
                 "mode": "download_favorites",
                 "token": token,
                 "output": Path(out_str) if out_str else Path(state['output']),
                 "folder_name": state['folder_name'],
                 "format": fmt,
+                "flat": flat,
                 "concurrency": state['concurrency'],
                 "save_info": True,
             }
@@ -140,6 +152,7 @@ def prompt_interactive() -> dict:
 
     scheme = _prompt_choice("Folder naming (both/title/code)", ('both', 'title', 'code'), state['folder_name'])
     fmt = _prompt_choice("Output format (image/pdf/both)", ('image', 'pdf', 'both'), state['format'])
+    flat = _prompt_bool("Flat PDF output (no subfolders)", state['flat']) if fmt in ('pdf', 'both') else False
 
     conc_str = input(f"{Fore.YELLOW}Concurrent downloads [{state['concurrency']}]: {Style.RESET_ALL}").strip()
     concurrency = int(conc_str) if conc_str.isdigit() and int(conc_str) > 0 else state['concurrency']
@@ -150,6 +163,7 @@ def prompt_interactive() -> dict:
         "output": output_dir,
         "folder_name": scheme,
         "format": fmt,
+        "flat": flat,
         "concurrency": concurrency,
         "save_info": True,
     }
@@ -164,6 +178,7 @@ def get_args() -> dict:
     parser.add_argument('-o', '--output', type=Path, default=None, help="Output directory (default: ./downloads)")
     parser.add_argument('-n', '--folder-name', choices=['both', 'title', 'code'], default=None, help="Folder naming strategy (default: both)")
     parser.add_argument('-f', '--format', choices=['image', 'pdf', 'both'], default=None, help="Output format (default: image)")
+    parser.add_argument('--flat', action='store_true', default=None, help="Save PDF directly in output directory without subfolders")
     parser.add_argument('-j', '--concurrency', type=int, default=None, help="Number of concurrent page downloads (default: 5)")
     parser.add_argument('--last', action='store_true', help="Reuse last saved settings")
     parser.add_argument('--no-info', action='store_true', help="Skip saving info.json")
@@ -180,6 +195,7 @@ def get_args() -> dict:
     output_dir = parsed.output if parsed.output is not None else Path(base["output"])
     folder_name = parsed.folder_name if parsed.folder_name is not None else base["folder_name"]
     output_format = parsed.format if parsed.format is not None else base["format"]
+    flat = parsed.flat if parsed.flat is not None else base["flat"]
     concurrency = parsed.concurrency if parsed.concurrency is not None else base["concurrency"]
 
     auth_kwargs = {"token": parsed.token, "api_key": parsed.api_key}
@@ -198,6 +214,7 @@ def get_args() -> dict:
             "output": output_dir,
             "folder_name": folder_name,
             "format": output_format,
+            "flat": flat,
             "concurrency": concurrency,
             "save_info": not parsed.no_info,
         }
@@ -214,6 +231,7 @@ def get_args() -> dict:
         "output": output_dir,
         "folder_name": folder_name,
         "format": output_format,
+        "flat": flat,
         "concurrency": concurrency,
         "save_info": not parsed.no_info,
     }
